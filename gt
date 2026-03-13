@@ -521,19 +521,19 @@ cmd_cleanup() {
   info "Fetching and pruning remote references..."
   git fetch --prune
 
-  # Get merged branches (excluding current and default)
+  # Get merged branches (excluding default)
   local merged_branches=()
   while IFS= read -r b; do
     [[ -z "$b" ]] && continue
-    [[ "$b" == "$branch" || "$b" == "$default_branch" ]] && continue
+    [[ "$b" == "$default_branch" ]] && continue
     merged_branches+=("$b")
   done < <(git branch --merged "$default_branch" --format='%(refname:short)')
 
-  # Get all local branches (excluding current and default)
+  # Get all local branches (excluding default)
   local all_branches=()
   while IFS= read -r b; do
     [[ -z "$b" ]] && continue
-    [[ "$b" == "$branch" || "$b" == "$default_branch" ]] && continue
+    [[ "$b" == "$default_branch" ]] && continue
     all_branches+=("$b")
   done < <(git branch --format='%(refname:short)')
 
@@ -583,6 +583,16 @@ cmd_cleanup() {
 
   local deleted=0
 
+  # Helper: switch to default branch if we're about to delete the current one
+  _ensure_not_on_branch() {
+    local target="$1"
+    if [[ "$(git symbolic-ref --short HEAD)" == "$target" ]]; then
+      info "Switching to ${BOLD}${default_branch}${RESET} before deleting current branch..."
+      git checkout "$default_branch" &>/dev/null
+      git pull --ff-only &>/dev/null || true
+    fi
+  }
+
   # Category 1: Safe to delete (merged + remote gone)
   if [[ ${#safe_to_delete[@]} -gt 0 ]]; then
     echo -e "${GREEN}${BOLD}── Safe to delete (merged, remote gone) ──${RESET}"
@@ -596,6 +606,7 @@ cmd_cleanup() {
     if [[ -n "$chosen" ]]; then
       while IFS= read -r b; do
         [[ -z "$b" ]] && continue
+        _ensure_not_on_branch "$b"
         if git branch -d "$b" &>/dev/null; then
           info "Deleted ${BOLD}${b}${RESET}"
           deleted=$(( deleted + 1 ))
@@ -616,6 +627,7 @@ cmd_cleanup() {
 
       case "$action" in
         "Delete local only")
+          _ensure_not_on_branch "$b"
           if git branch -d "$b" &>/dev/null; then
             info "Deleted local ${BOLD}${b}${RESET}"
             deleted=$(( deleted + 1 ))
@@ -624,6 +636,7 @@ cmd_cleanup() {
           fi
           ;;
         "Delete local + remote")
+          _ensure_not_on_branch "$b"
           if git branch -d "$b" &>/dev/null; then
             info "Deleted local ${BOLD}${b}${RESET}"
             deleted=$(( deleted + 1 ))
@@ -671,6 +684,7 @@ cmd_cleanup() {
           fi
         done
         [[ -z "$b" ]] && continue
+        _ensure_not_on_branch "$b"
         if git branch -D "$b" &>/dev/null; then
           info "Force-deleted ${BOLD}${b}${RESET}"
           deleted=$(( deleted + 1 ))
