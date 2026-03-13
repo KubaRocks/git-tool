@@ -16,6 +16,10 @@ A CLI that streamlines the git branch-commit-push workflow with AI-generated com
 
 - **`gt cleanup`** — Delete stale local branches. Categorizes branches as safe-to-delete (merged, remote gone), merged-with-remote (choose local/remote/skip), or unmerged-remote-gone (with commit count context).
 
+- **`gt version`** — Print current version.
+
+- **`gt self-update`** — Check for updates and install the latest version. Updates completions if changed.
+
 ## Install
 
 ```bash
@@ -178,6 +182,30 @@ Select branches to force-delete:
 
 ─────────────────────────────────────────
 ✓ Deleted 3 branch(es). Skipped 1.
+```
+
+### `gt version`
+
+Print the current version.
+
+```
+❯ gt version
+git-tool (gt) v2026.03.13
+```
+
+### `gt self-update`
+
+Check for updates and install the latest version.
+
+```
+❯ gt self-update
+▸ Installed at: /Users/kuba/bin/gt
+▸ Current version: v2026.03.13
+▸ New version available: v2026.03.14
+▸ Updating: v2026.03.13 → v2026.03.14
+✓ Updated gt to v2026.03.14
+
+git-tool (gt) v2026.03.13 → v2026.03.14
 ```
 
 ## License
