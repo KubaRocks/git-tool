@@ -5,6 +5,7 @@ _gt() {
   commands=(
     'branch:Create a new branch off the default branch'
     'cleanup:Delete branches already merged or removed from remote'
+    'pr:Create a pull/merge request with AI-generated description'
     'push:Stage, commit with AI message, and push'
     'message:Generate a commit message from current changes'
     'rebase:Rebase current branch onto default branch'

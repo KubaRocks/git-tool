@@ -728,6 +728,198 @@ cmd_cleanup() {
   success "Deleted ${deleted} branch(es). Skipped ${skipped}."
 }
 
+# ── gt pr ───────────────────────────────────────────────────────────────────
+cmd_pr() {
+  assert_git_repo
+  assert_remote_origin
+  assert_not_detached
+
+  local branch
+  branch=$(git symbolic-ref --short HEAD)
+
+  # Detect default branch
+  local default_branch
+  default_branch=$(gum spin --spinner dot --title "Detecting default branch..." -- \
+    bash -c 'git remote show origin 2>/dev/null | grep "HEAD branch" | awk "{print \$NF}"')
+  [[ -z "$default_branch" ]] && die "Could not detect default branch from origin."
+
+  [[ "$branch" == "$default_branch" ]] && die "Already on ${default_branch}. Create a feature branch first."
+
+  # Detect platform from remote URL
+  local remote_url platform pr_cmd pr_label
+  remote_url=$(git remote get-url origin)
+
+  if [[ "$remote_url" == *github* ]]; then
+    platform="github"
+    pr_cmd="gh"
+    pr_label="Pull Request"
+  elif [[ "$remote_url" == *gitlab* ]]; then
+    platform="gitlab"
+    pr_cmd="glab"
+    pr_label="Merge Request"
+  else
+    die "Could not detect platform from remote URL. Only GitHub and GitLab are supported."
+  fi
+
+  # Check for platform CLI
+  if ! command -v "$pr_cmd" &>/dev/null; then
+    echo -e "${RED}Missing dependency: ${pr_cmd}${RESET}"
+    if [[ "$platform" == "github" ]]; then
+      echo "  Install: brew install gh  (or see https://cli.github.com)"
+    else
+      echo "  Install: brew install glab  (or see https://gitlab.com/gitlab-org/cli)"
+    fi
+    exit 1
+  fi
+
+  # Auto-push if branch not on remote
+  if ! git rev-parse --verify --quiet "refs/remotes/origin/${branch}" &>/dev/null; then
+    gum spin --spinner dot --title "Pushing branch to origin..." -- \
+      git push -u origin "$branch" 2>&1
+  else
+    # Push any unpushed commits
+    local unpushed
+    unpushed=$(git log --oneline "@{upstream}..HEAD" 2>/dev/null | wc -l | tr -d ' ')
+    if [[ "$unpushed" -gt 0 ]]; then
+      gum spin --spinner dot --title "Pushing ${unpushed} unpushed commit(s)..." -- \
+        git push 2>&1
+    fi
+  fi
+
+  # Gather context for AI
+  local commit_log
+  commit_log=$(git log --oneline "${default_branch}..HEAD" 2>/dev/null)
+  [[ -z "$commit_log" ]] && die "No commits ahead of ${default_branch}. Nothing to create a PR for."
+
+  local diff_stat
+  diff_stat=$(git diff --stat "${default_branch}..HEAD" 2>/dev/null)
+
+  local prompt="Generate a pull request title and description based on the branch and commits below.
+
+CRITICAL: Your response must follow this EXACT format with no other text:
+
+TITLE: <title here>
+DESCRIPTION:
+<description here>
+
+Requirements for TITLE:
+- Maximum 80 characters
+- Start with lowercase verb (add/fix/update/refactor/remove)
+- Be specific and concise
+- Do NOT include ticket/issue prefixes
+
+Requirements for DESCRIPTION:
+- Use markdown formatting
+- Start with a ## Summary section with 2-4 bullet points
+- Add a ## Changes section listing key changes
+- Keep it concise but informative
+- Do NOT wrap in code blocks
+
+Branch name: ${branch}
+
+Commits:
+${commit_log}
+
+Diff stats:
+${diff_stat}"
+
+  # Generate PR content (with review loop)
+  local title description
+  while true; do
+    local tmpfile
+    tmpfile=$(mktemp /tmp/gt-pr.XXXXXX)
+
+    gum spin --spinner dot --title "Generating ${pr_label} content..." -- \
+      bash -c 'claude --model haiku "$1" > "$2" 2>/dev/null' _ "$prompt" "$tmpfile" || {
+      rm -f "$tmpfile"
+      die "Claude CLI failed."
+    }
+
+    local raw_output
+    raw_output=$(cat "$tmpfile")
+    rm -f "$tmpfile"
+
+    [[ -z "$raw_output" ]] && die "Claude CLI returned empty output."
+
+    # Parse title and description
+    title=$(echo "$raw_output" | grep -m1 '^TITLE:' | sed 's/^TITLE:[[:space:]]*//')
+    description=$(echo "$raw_output" | sed -n '/^DESCRIPTION:/,$ p' | tail -n +2)
+
+    # Clean up
+    title=$(echo "$title" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | head -c 80)
+    description=$(echo "$description" | sed 's/^[[:space:]]*$//' | sed '/./,$!d')
+
+    [[ -z "$title" ]] && title="$(echo "$commit_log" | head -1)"
+    [[ -z "$description" ]] && description="$(echo "$commit_log")"
+
+    # Show preview
+    echo ""
+    echo -e "${BOLD}${pr_label}:${RESET}"
+    echo -e "${DIM}─────────────────────────────────────────${RESET}"
+    echo -e "${BOLD}Title:${RESET} ${title}"
+    echo ""
+    echo "$description"
+    echo -e "${DIM}─────────────────────────────────────────${RESET}"
+    echo ""
+
+    local action
+    action=$(gum choose "Accept" "Edit" "Regenerate" "Cancel" --header "What would you like to do?")
+
+    case "$action" in
+      Accept)
+        break
+        ;;
+      Edit)
+        local tmpfile_edit
+        tmpfile_edit=$(mktemp /tmp/gt-pr-edit.XXXXXX)
+        printf "TITLE: %s\n\n%s" "$title" "$description" > "$tmpfile_edit"
+        ${EDITOR:-vi} "$tmpfile_edit"
+        title=$(head -1 "$tmpfile_edit" | sed 's/^TITLE:[[:space:]]*//')
+        description=$(tail -n +3 "$tmpfile_edit")
+        rm -f "$tmpfile_edit"
+        [[ -z "$title" ]] && die "Empty title. Aborting."
+        break
+        ;;
+      Regenerate)
+        continue
+        ;;
+      Cancel)
+        info "Aborted."
+        return
+        ;;
+    esac
+  done
+
+  # Create PR/MR
+  local pr_tmpfile
+  pr_tmpfile=$(mktemp /tmp/gt-pr-url.XXXXXX)
+
+  if [[ "$platform" == "github" ]]; then
+    gum spin --spinner dot --title "Creating ${pr_label}..." -- \
+      bash -c 'gh pr create --base "$1" --title "$2" --body "$3" > "$4" 2>&1' \
+      _ "$default_branch" "$title" "$description" "$pr_tmpfile"
+  else
+    gum spin --spinner dot --title "Creating ${pr_label}..." -- \
+      bash -c 'glab mr create --target-branch "$1" --title "$2" --description "$3" --no-editor > "$4" 2>&1' \
+      _ "$default_branch" "$title" "$description" "$pr_tmpfile"
+  fi
+
+  local pr_url
+  pr_url=$(cat "$pr_tmpfile")
+  rm -f "$pr_tmpfile"
+
+  if [[ -z "$pr_url" ]]; then
+    die "Failed to create ${pr_label}."
+  fi
+
+  # Extract URL from output (gh/glab may print extra text)
+  local url
+  url=$(echo "$pr_url" | grep -oE 'https://[^ ]+' | tail -1)
+
+  echo ""
+  success "Created ${pr_label}: ${BOLD}${url:-$pr_url}${RESET}"
+}
+
 # ── gt version ──────────────────────────────────────────────────────────────
 cmd_version() {
   echo "git-tool (gt) ${GT_VERSION}"
@@ -871,6 +1063,7 @@ main() {
     rebase)  cmd_rebase ;;
     status)  cmd_status ;;
     cleanup) check_deps; cmd_cleanup ;;
+    pr)      check_deps; cmd_pr ;;
     self-update) cmd_self_update ;;
     version|--version|-v) cmd_version ;;
     *)
@@ -882,6 +1075,7 @@ main() {
       echo -e "  ${GREEN}gt rebase${RESET}      Rebase current branch onto default branch"
       echo -e "  ${GREEN}gt status${RESET}      Show current branch overview"
       echo -e "  ${GREEN}gt cleanup${RESET}     Delete branches already merged or removed from remote"
+      echo -e "  ${GREEN}gt pr${RESET}          Create a pull/merge request with AI-generated description"
       echo -e "  ${GREEN}gt version${RESET}     Show current version"
       echo -e "  ${GREEN}gt self-update${RESET}  Update gt to the latest version"
       echo ""
