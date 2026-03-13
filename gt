@@ -521,6 +521,17 @@ cmd_cleanup() {
   info "Fetching and pruning remote references..."
   git fetch --prune
 
+  # If current branch is not the default and its remote is gone, switch to default first
+  if [[ "$branch" != "$default_branch" ]]; then
+    if ! git rev-parse --verify --quiet "refs/remotes/origin/${branch}" &>/dev/null; then
+      warn "Current branch ${BOLD}${branch}${RESET} has no remote. Switching to ${BOLD}${default_branch}${RESET}..."
+      git checkout "$default_branch"
+      git pull --ff-only 2>/dev/null || true
+      # Now the old branch can be included in the scan
+      branch="$default_branch"
+    fi
+  fi
+
   # Get merged branches (excluding current and default)
   local merged_branches=()
   while IFS= read -r b; do
