@@ -772,6 +772,10 @@ cmd_self_update() {
 
   echo ""
   echo -e "git-tool (gt) ${GT_VERSION} → ${latest_version}"
+
+  # Exit immediately — the script on disk was just replaced, so bash must not
+  # continue reading from the now-different file.
+  exit 0
 }
 
 _update_completions() {
