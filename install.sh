@@ -7,11 +7,17 @@ set -uo pipefail
 # Note: do NOT use `exec < /dev/tty` here — it would steal stdin from bash
 # mid-pipe and hang the script. Instead, individual `read` calls use `< /dev/tty`.
 
+# Detect whether /dev/tty is usable for interactive prompts
+HAS_TTY=false
+if : < /dev/tty 2>/dev/null; then
+  HAS_TTY=true
+fi
+
 # Helper: prompt user if TTY is available, otherwise use default value
 # Usage: prompt_or_default VARNAME "prompt text" "default"
 prompt_or_default() {
   local _var=$1 _prompt=$2 _default=$3
-  if [[ -e /dev/tty ]]; then
+  if [[ "$HAS_TTY" == true ]]; then
     read -rp "$_prompt" "$_var" < /dev/tty
     eval "$_var=\"\${$_var:-$_default}\""
   else
