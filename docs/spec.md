@@ -90,6 +90,28 @@ Shows a quick overview of the current branch state.
 - Number of unpushed commits (ahead of remote)
 - Last commit message (short summary)
 
+### `gt cleanup`
+
+Deletes stale local branches grouped by safety level.
+
+**Flow:**
+
+1. Assert git repo, remote origin, not detached
+2. Detect default branch from remote
+3. `git fetch --prune` to sync remote state
+4. Scan all local branches (exclude current + default)
+5. Categorize each branch:
+   - **Safe to delete:** merged into default branch AND `origin/<branch>` gone
+   - **Merged, remote exists:** merged into default branch AND `origin/<branch>` still present
+   - **Unmerged, remote gone:** NOT merged into default AND `origin/<branch>` gone
+   - Active branches (not merged, remote exists) are skipped entirely
+6. Display summary counts per category
+7. Category 1 — `gum choose --no-limit` with all preselected → `git branch -d`
+8. Category 2 — per-branch `gum choose`: "Delete local only" / "Delete local + remote" / "Skip"
+   - Local: `git branch -d`, Remote: `git push origin --delete <branch>`
+9. Category 3 — show commit count ahead of default, `gum choose --no-limit` (none preselected) → `git branch -D`
+10. Show summary: "Deleted X branch(es). Skipped Y."
+
 ## Edge Cases
 
 - **Not a git repo:** Detect and print a clear error

@@ -739,6 +739,7 @@ case "${1:-}" in
   message) check_deps; cmd_message ;;
   rebase)  cmd_rebase ;;
   status)  cmd_status ;;
+  cleanup) check_deps; cmd_cleanup ;;
   --version|-v) echo "gt ${GT_VERSION}" ;;
   *)
     echo -e "${BOLD}gt${RESET} — Git Tool v${GT_VERSION}"
@@ -748,6 +749,7 @@ case "${1:-}" in
     echo -e "  ${GREEN}gt message${RESET}   Generate a commit message from current changes"
     echo -e "  ${GREEN}gt rebase${RESET}    Rebase current branch onto default branch"
     echo -e "  ${GREEN}gt status${RESET}    Show current branch overview"
+    echo -e "  ${GREEN}gt cleanup${RESET}   Delete branches already merged or removed from remote"
     echo ""
     ;;
 esac
