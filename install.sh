@@ -52,7 +52,7 @@ if [[ ${#missing_deps[@]} -gt 0 ]]; then
         echo -e "  ${BOLD}gum${RESET} — interactive terminal UI"
         if command -v brew &>/dev/null; then
           echo -e "    Install with: ${DIM}brew install gum${RESET}"
-          read -rp "    Install now? [Y/n] " answer
+          read -rp "    Install now? [Y/n] " answer < /dev/tty
           if [[ "${answer:-Y}" =~ ^[Yy]$ ]]; then
             brew install gum
             if command -v gum &>/dev/null; then
@@ -70,7 +70,7 @@ if [[ ${#missing_deps[@]} -gt 0 ]]; then
         echo -e "  ${BOLD}claude${RESET} — Claude CLI for AI commit messages"
         if command -v npm &>/dev/null; then
           echo -e "    Install with: ${DIM}npm install -g @anthropic-ai/claude-code${RESET}"
-          read -rp "    Install now? [Y/n] " answer
+          read -rp "    Install now? [Y/n] " answer < /dev/tty
           if [[ "${answer:-Y}" =~ ^[Yy]$ ]]; then
             npm install -g @anthropic-ai/claude-code
             if command -v claude &>/dev/null; then
@@ -122,7 +122,6 @@ for dir in "$HOME/bin" "$HOME/.local/bin" "/usr/local/bin"; do
     candidate_labels+=("${dir} (requires sudo)")
   elif [[ ! -d "$dir" ]]; then
     # Directory doesn't exist — check if parent is writable
-    local parent_dir
     parent_dir=$(dirname "$dir")
     if [[ -w "$parent_dir" ]]; then
       candidates+=("$dir")
@@ -147,7 +146,7 @@ for i in "${!candidate_labels[@]}"; do
   echo -e "  ${GREEN}$((i + 1)))${RESET} ${candidate_labels[$i]}"
 done
 echo ""
-read -rp "  Choose [1]: " choice_num
+read -rp "  Choose [1]: " choice_num < /dev/tty
 choice_num="${choice_num:-1}"
 
 # Validate
@@ -159,7 +158,7 @@ fi
 selected="${candidates[$((choice_num - 1))]}"
 
 if [[ "$selected" == "custom" ]]; then
-  read -rp "  Enter path: " selected
+  read -rp "  Enter path: " selected < /dev/tty
   selected="${selected/#\~/$HOME}"
 fi
 
@@ -207,7 +206,7 @@ if [[ -n "${ZSH_VERSION:-}" ]] || [[ "$SHELL" == *zsh* ]]; then
 
   if [[ "$COMPLETIONS_INSTALLED" == false ]]; then
     # Create completions dir
-    local comp_dir="$HOME/.zsh/completions"
+    comp_dir="$HOME/.zsh/completions"
     mkdir -p "$comp_dir"
     info "Installing zsh completions to ${comp_dir}..."
     curl -fsSL "${REPO_URL}/completions/_gt" -o "${comp_dir}/_gt" 2>/dev/null && COMPLETIONS_INSTALLED=true
