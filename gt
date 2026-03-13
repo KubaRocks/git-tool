@@ -327,11 +327,24 @@ ${recent_commits}
 Changes to summarize:
 ${diff_to_analyze}"
 
-  local raw_output
-  raw_output=$(claude --model haiku "$prompt" 2>/dev/null) || {
+  local tmpfile
+  tmpfile=$(mktemp /tmp/gt-message.XXXXXX)
+
+  gum spin --spinner dot --title "Generating commit message..." -- \
+    bash -c 'claude --model haiku "$1" > "$2" 2>/dev/null' _ "$prompt" "$tmpfile" || {
+    rm -f "$tmpfile"
     echo "error: Claude CLI failed" >&2
     return 1
   }
+
+  local raw_output
+  raw_output=$(cat "$tmpfile")
+  rm -f "$tmpfile"
+
+  if [[ -z "$raw_output" ]]; then
+    echo "error: Claude CLI returned empty output" >&2
+    return 1
+  fi
 
   # Clean up the output
   local commit_message
@@ -850,26 +863,33 @@ push_branch() {
 }
 
 # ── Main ─────────────────────────────────────────────────────────────────────
-case "${1:-}" in
-  branch)  check_deps; cmd_branch ;;
-  push)    check_deps; cmd_push ;;
-  message) check_deps; cmd_message ;;
-  rebase)  cmd_rebase ;;
-  status)  cmd_status ;;
-  cleanup) check_deps; cmd_cleanup ;;
-  self-update) cmd_self_update ;;
-  version|--version|-v) cmd_version ;;
-  *)
-    echo -e "${BOLD}git-tool (gt)${RESET} ${GT_VERSION}"
-    echo ""
-    echo -e "  ${GREEN}gt branch${RESET}       Create a new branch off the default branch"
-    echo -e "  ${GREEN}gt push${RESET}        Stage, commit with AI message, and push"
-    echo -e "  ${GREEN}gt message${RESET}     Generate a commit message from current changes"
-    echo -e "  ${GREEN}gt rebase${RESET}      Rebase current branch onto default branch"
-    echo -e "  ${GREEN}gt status${RESET}      Show current branch overview"
-    echo -e "  ${GREEN}gt cleanup${RESET}     Delete branches already merged or removed from remote"
-    echo -e "  ${GREEN}gt version${RESET}     Show current version"
-    echo -e "  ${GREEN}gt self-update${RESET}  Update gt to the latest version"
-    echo ""
-    ;;
-esac
+# Wrapped in a function so bash reads the entire script into memory before
+# executing. This prevents parse errors when cmd_self_update replaces the
+# script on disk mid-execution.
+main() {
+  case "${1:-}" in
+    branch)  check_deps; cmd_branch ;;
+    push)    check_deps; cmd_push ;;
+    message) check_deps; cmd_message ;;
+    rebase)  cmd_rebase ;;
+    status)  cmd_status ;;
+    cleanup) check_deps; cmd_cleanup ;;
+    self-update) cmd_self_update ;;
+    version|--version|-v) cmd_version ;;
+    *)
+      echo -e "${BOLD}git-tool (gt)${RESET} ${GT_VERSION}"
+      echo ""
+      echo -e "  ${GREEN}gt branch${RESET}       Create a new branch off the default branch"
+      echo -e "  ${GREEN}gt push${RESET}        Stage, commit with AI message, and push"
+      echo -e "  ${GREEN}gt message${RESET}     Generate a commit message from current changes"
+      echo -e "  ${GREEN}gt rebase${RESET}      Rebase current branch onto default branch"
+      echo -e "  ${GREEN}gt status${RESET}      Show current branch overview"
+      echo -e "  ${GREEN}gt cleanup${RESET}     Delete branches already merged or removed from remote"
+      echo -e "  ${GREEN}gt version${RESET}     Show current version"
+      echo -e "  ${GREEN}gt self-update${RESET}  Update gt to the latest version"
+      echo ""
+      ;;
+  esac
+}
+
+main "$@"
