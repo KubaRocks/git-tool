@@ -551,6 +551,19 @@ cmd_cleanup() {
       fi
     done
 
+    # Detect squash merges: create a temp squash commit and check
+    # if its patch-id already exists in the default branch
+    if [[ $is_merged -eq 0 ]]; then
+      local mb sq
+      mb=$(git merge-base "$default_branch" "$b" 2>/dev/null || true)
+      if [[ -n "$mb" ]]; then
+        sq=$(git commit-tree "${b}^{tree}" -p "$mb" -m "temp" 2>/dev/null || true)
+        if [[ -n "$sq" ]] && ! git cherry "$default_branch" "$sq" 2>/dev/null | grep -q "^+"; then
+          is_merged=1
+        fi
+      fi
+    fi
+
     local remote_exists=0
     if git rev-parse --verify --quiet "refs/remotes/origin/${b}" &>/dev/null; then
       remote_exists=1
