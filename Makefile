@@ -16,7 +16,8 @@ release:
 	\
 	git add VERSION gt; \
 	git commit -m "release: $$version"; \
-	git tag "$$version"; \
-	git push && git push --tags; \
+	git push; \
+	\
+	gh release create "$$version" --generate-notes --title "$$version"; \
 	echo ""; \
 	echo "Released $$version"
