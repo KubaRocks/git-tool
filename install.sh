@@ -4,6 +4,10 @@ set -uo pipefail
 # gt installer
 # Usage: curl -fsSL https://raw.githubusercontent.com/KubaRocks/git-tool/main/install.sh | bash
 
+# When piped via curl|bash, stdin is the script. Reclaim the terminal.
+if [[ ! -t 0 ]]; then
+  execfi
+
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
@@ -52,8 +56,7 @@ if [[ ${#missing_deps[@]} -gt 0 ]]; then
         echo -e "  ${BOLD}gum${RESET} — interactive terminal UI"
         if command -v brew &>/dev/null; then
           echo -e "    Install with: ${DIM}brew install gum${RESET}"
-          read -rp "    Install now? [Y/n] " answer < /dev/tty
-          if [[ "${answer:-Y}" =~ ^[Yy]$ ]]; then
+          read -rp "    Install now? [Y/n] " answer          if [[ "${answer:-Y}" =~ ^[Yy]$ ]]; then
             brew install gum
             if command -v gum &>/dev/null; then
               success "gum installed."
@@ -70,8 +73,7 @@ if [[ ${#missing_deps[@]} -gt 0 ]]; then
         echo -e "  ${BOLD}claude${RESET} — Claude CLI for AI commit messages"
         if command -v npm &>/dev/null; then
           echo -e "    Install with: ${DIM}npm install -g @anthropic-ai/claude-code${RESET}"
-          read -rp "    Install now? [Y/n] " answer < /dev/tty
-          if [[ "${answer:-Y}" =~ ^[Yy]$ ]]; then
+          read -rp "    Install now? [Y/n] " answer          if [[ "${answer:-Y}" =~ ^[Yy]$ ]]; then
             npm install -g @anthropic-ai/claude-code
             if command -v claude &>/dev/null; then
               success "claude installed."
@@ -146,8 +148,7 @@ for i in "${!candidate_labels[@]}"; do
   echo -e "  ${GREEN}$((i + 1)))${RESET} ${candidate_labels[$i]}"
 done
 echo ""
-read -rp "  Choose [1]: " choice_num < /dev/tty
-choice_num="${choice_num:-1}"
+read -rp "  Choose [1]: " choice_numchoice_num="${choice_num:-1}"
 
 # Validate
 if [[ ! "$choice_num" =~ ^[0-9]+$ ]] || [[ "$choice_num" -lt 1 ]] || [[ "$choice_num" -gt ${#candidates[@]} ]]; then
@@ -158,8 +159,7 @@ fi
 selected="${candidates[$((choice_num - 1))]}"
 
 if [[ "$selected" == "custom" ]]; then
-  read -rp "  Enter path: " selected < /dev/tty
-  selected="${selected/#\~/$HOME}"
+  read -rp "  Enter path: " selected  selected="${selected/#\~/$HOME}"
 fi
 
 # Expand and validate
