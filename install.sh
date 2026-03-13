@@ -9,7 +9,7 @@ set -uo pipefail
 
 # Detect whether /dev/tty is usable for interactive prompts
 HAS_TTY=false
-if : < /dev/tty 2>/dev/null; then
+if (: < /dev/tty) 2>/dev/null; then
   HAS_TTY=true
 fi
 
