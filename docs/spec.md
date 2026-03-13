@@ -112,6 +112,29 @@ Deletes stale local branches grouped by safety level.
 9. Category 3 — show commit count ahead of default, `gum choose --no-limit` (none preselected) → `git branch -D`
 10. Show summary: "Deleted X branch(es). Skipped Y."
 
+### `gt version`
+
+Prints the current version.
+
+**Output:** `git-tool (gt) v2026.03.13`
+
+Aliases: `gt --version`, `gt -v`
+
+### `gt self-update`
+
+Updates gt to the latest version.
+
+**Flow:**
+
+1. Detect install path via `which gt`
+2. Fetch `VERSION` from `raw.githubusercontent.com/KubaRocks/git-tool/main/VERSION`
+3. Compare with current `GT_VERSION`
+4. If same → "Already up to date" and exit
+5. Download new `gt` to install path (sudo if not writable)
+6. Check for installed zsh completions, download new version, compare, update only if changed
+7. If completions changed, instruct user to run `exec zsh`
+8. Print version transition summary
+
 ## Edge Cases
 
 - **Not a git repo:** Detect and print a clear error
