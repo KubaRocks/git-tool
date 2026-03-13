@@ -8,13 +8,17 @@ A CLI that streamlines the git branch-commit-push workflow with AI-generated com
 
 - **`gt push`** — Interactive file staging with status labels, AI-generated commit messages (accept/edit/regenerate/cancel), auto-pull before commit, smart push with force-with-lease after rebase.
 
-- **`gt message`** — Generate a commit message from current changes using Claude AI. Works standalone or piped (e.g. `gt message | pbcopy`).
+- **`gt message`** — Generate a commit message from current changes using AI. Works standalone or piped (e.g. `gt message | pbcopy`).
 
 - **`gt rebase`** — Rebase current branch onto the default branch. On conflicts, offers to launch Claude Code or Codex to resolve them automatically.
 
 - **`gt status`** — Quick overview: branch name, JIRA ticket, dirty files, unpushed commits, last commit message.
 
 - **`gt cleanup`** — Delete stale local branches. Categorizes branches as safe-to-delete (merged, remote gone), merged-with-remote (choose local/remote/skip), or unmerged-remote-gone (with commit count context).
+
+- **`gt pr`** — Create a pull request (GitHub) or merge request (GitLab) with AI-generated title and description. Auto-detects platform from remote URL.
+
+- **`gt configure`** — Choose which AI CLI tool and model `gt` uses for content generation. Supports Claude, Codex, OpenCode, and Gemini.
 
 - **`gt version`** — Print current version.
 
@@ -34,7 +38,11 @@ The installer will:
 ### Dependencies
 
 - [gum](https://github.com/charmbracelet/gum) — interactive terminal UI
-- [claude](https://docs.anthropic.com/en/docs/claude-cli) — AI commit message generation
+- One of the supported AI CLI tools (configured via `gt configure`):
+  - [Claude](https://docs.anthropic.com/en/docs/claude-cli) — `brew install claude`
+  - [Codex](https://developers.openai.com/codex/) — `npm i -g @openai/codex`
+  - [OpenCode](https://opencode.ai) — see website
+  - [Gemini](https://google-gemini.github.io/gemini-cli/) — `npm i -g @google/gemini-cli`
 
 ### Manual install
 
@@ -183,6 +191,60 @@ Select branches to force-delete:
 ─────────────────────────────────────────
 ✓ Deleted 3 branch(es). Skipped 1.
 ```
+
+### `gt pr`
+
+Creates a pull request (GitHub) or merge request (GitLab) with an AI-generated title and description. Auto-detects platform from your remote URL.
+
+```
+❯ gt pr
+▸ Detecting default branch...
+
+Pull Request:
+─────────────────────────────────────────
+Title: ID-4567: add request caching to API handler
+
+## Summary
+- Added caching layer to API handler
+- Improved response times for repeated requests
+
+## Changes
+- New cache utility in src/utils/cache.ts
+- Updated handler to check cache before processing
+─────────────────────────────────────────
+
+? What would you like to do?
+> Accept
+  Edit
+  Regenerate
+  Cancel
+
+✓ Created Pull Request: https://github.com/user/repo/pull/42
+```
+
+### `gt configure`
+
+Choose which AI CLI tool and model `gt` uses for content generation. Configuration is stored in `~/.config/git-tool/config`.
+
+```
+❯ gt configure
+? Select AI CLI tool:
+> claude
+  codex
+  opencode
+  gemini
+
+▸ Querying claude for models...
+
+? Select model:
+> sonnet
+  opus
+  haiku
+
+✓ Configured: claude with model haiku
+```
+
+Running `gt configure` again overwrites the previous configuration. If no AI tool is configured, commands that need AI (`gt push`, `gt message`, `gt pr`) will auto-launch `gt configure` first.
 
 ### `gt version`
 

@@ -22,20 +22,54 @@ info() { echo -e "${BLUE}▸${RESET} $*"; }
 success() { echo -e "${GREEN}✓${RESET} $*"; }
 warn() { echo -e "${YELLOW}⚠${RESET} $*"; }
 
+# ── Configuration ───────────────────────────────────────────────────────────
+GT_CONFIG_DIR="${HOME}/.config/git-tool"
+GT_CONFIG_FILE="${GT_CONFIG_DIR}/config"
+
+load_config() {
+  GT_AI_CLI=""
+  GT_AI_MODEL=""
+  if [[ -f "$GT_CONFIG_FILE" ]]; then
+    # shellcheck source=/dev/null
+    source "$GT_CONFIG_FILE"
+  fi
+}
+
+ensure_ai_configured() {
+  load_config
+  if [[ -z "$GT_AI_CLI" || -z "$GT_AI_MODEL" ]]; then
+    info "No AI tool configured."
+    cmd_configure
+    load_config
+    [[ -z "$GT_AI_CLI" ]] && die "AI tool not configured. Run 'gt configure'."
+  fi
+
+  # Verify the configured tool is still installed
+  if ! command -v "$GT_AI_CLI" &>/dev/null; then
+    echo -e "${RED}Configured AI tool '${GT_AI_CLI}' is not installed.${RESET}"
+    _show_install_instructions "$GT_AI_CLI"
+    echo ""
+    info "Run 'gt configure' to choose a different tool."
+    exit 1
+  fi
+}
+
+_show_install_instructions() {
+  case "$1" in
+    claude)   echo "  Install: brew install claude  (or see https://docs.anthropic.com/en/docs/claude-cli)" ;;
+    codex)    echo "  Install: npm i -g @openai/codex  (or see https://developers.openai.com/codex/)" ;;
+    opencode) echo "  Install: see https://opencode.ai" ;;
+    gemini)   echo "  Install: npm i -g @google/gemini-cli  (or see https://google-gemini.github.io/gemini-cli/)" ;;
+  esac
+}
+
 # ── Dependency Check ─────────────────────────────────────────────────────────
 check_deps() {
-  local missing=0
   if ! command -v gum &>/dev/null; then
     echo -e "${RED}Missing dependency: gum${RESET}"
     echo "  Install: brew install gum  (or see https://github.com/charmbracelet/gum)"
-    missing=1
+    exit 1
   fi
-  if ! command -v claude &>/dev/null; then
-    echo -e "${RED}Missing dependency: claude${RESET}"
-    echo "  Install: see https://docs.anthropic.com/en/docs/claude-cli"
-    missing=1
-  fi
-  [[ $missing -eq 1 ]] && exit 1
 }
 
 # ── Git Guards ───────────────────────────────────────────────────────────────
@@ -58,6 +92,69 @@ extract_ticket_id() {
   if [[ "$input" =~ ([A-Z]+-[0-9]+) ]]; then
     echo "${BASH_REMATCH[1]}"
   fi
+}
+
+# ── gt configure ─────────────────────────────────────────────────────────────
+cmd_configure() {
+  # 1. Choose AI CLI tool
+  local tool
+  tool=$(gum choose "claude" "codex" "opencode" "gemini" --header "Select AI CLI tool:") || die "Selection cancelled."
+  [[ -z "$tool" ]] && die "No tool selected."
+
+  # 2. Validate the tool is installed
+  if ! command -v "$tool" &>/dev/null; then
+    echo -e "${RED}${tool} is not installed.${RESET}"
+    _show_install_instructions "$tool"
+    exit 1
+  fi
+
+  # 3. Get available models
+  local models_tmpfile
+  models_tmpfile=$(mktemp /tmp/gt-models.XXXXXX)
+  local models_prompt="List your available model names that work with the -m/--model flag, one per line, no explanations."
+
+  local query_ok=0
+  gum spin --spinner dot --title "Querying ${tool} for models..." -- \
+    bash -c '
+      case "$1" in
+        claude)   claude -p "$2" > "$3" 2>/dev/null ;;
+        codex)    codex exec "$2" > "$3" 2>/dev/null ;;
+        opencode) opencode models > "$3" 2>/dev/null ;;
+        gemini)   gemini -p "$2" > "$3" 2>/dev/null ;;
+      esac
+    ' _ "$tool" "$models_prompt" "$models_tmpfile" && query_ok=1
+
+  local model_list=()
+  if [[ $query_ok -eq 1 && -s "$models_tmpfile" ]]; then
+    while IFS= read -r line; do
+      line=$(echo "$line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+      [[ -z "$line" ]] && continue
+      [[ "$line" =~ ^[-#*] ]] && continue
+      [[ ${#line} -gt 80 ]] && continue
+      model_list+=("$line")
+    done < "$models_tmpfile"
+  fi
+  rm -f "$models_tmpfile"
+
+  # 4. Let user pick a model
+  local model
+  if [[ ${#model_list[@]} -gt 0 ]]; then
+    model=$(printf "%s\n" "${model_list[@]}" | gum choose --header "Select model:") || die "Selection cancelled."
+  else
+    warn "Could not retrieve model list. Enter model name manually."
+    model=$(gum input --placeholder "Model name (e.g. haiku, gpt-4o, gemini-2.5-flash)") || die "Input cancelled."
+  fi
+  [[ -z "$model" ]] && die "No model selected."
+
+  # 5. Save config
+  mkdir -p "$GT_CONFIG_DIR"
+  cat > "$GT_CONFIG_FILE" <<EOF
+GT_AI_CLI="${tool}"
+GT_AI_MODEL="${model}"
+EOF
+
+  # 6. Confirm
+  success "Configured: ${BOLD}${tool}${RESET} with model ${BOLD}${model}${RESET}"
 }
 
 # ── gt branch ────────────────────────────────────────────────────────────────
@@ -283,6 +380,7 @@ cmd_push() {
 # ── gt message ───────────────────────────────────────────────────────────────
 cmd_message() {
   assert_git_repo
+  ensure_ai_configured
 
   local branch_name
   branch_name=$(git branch --show-current)
@@ -330,9 +428,16 @@ ${diff_to_analyze}"
   tmpfile=$(mktemp /tmp/gt-message.XXXXXX)
 
   gum spin --spinner dot --title "Generating commit message..." -- \
-    bash -c 'claude --model haiku "$1" > "$2" 2>/dev/null' _ "$prompt" "$tmpfile" || {
+    bash -c '
+      case "$1" in
+        claude)   claude -p --model "$2" "$3" > "$4" 2>/dev/null ;;
+        codex)    codex exec -m "$2" "$3" > "$4" 2>/dev/null ;;
+        opencode) opencode run -q -m "$2" "$3" > "$4" 2>/dev/null ;;
+        gemini)   gemini -p -m "$2" "$3" > "$4" 2>/dev/null ;;
+      esac
+    ' _ "$GT_AI_CLI" "$GT_AI_MODEL" "$prompt" "$tmpfile" || {
     rm -f "$tmpfile"
-    echo "error: Claude CLI failed" >&2
+    echo "error: AI CLI failed" >&2
     return 1
   }
 
@@ -341,7 +446,7 @@ ${diff_to_analyze}"
   rm -f "$tmpfile"
 
   if [[ -z "$raw_output" ]]; then
-    echo "error: Claude CLI returned empty output" >&2
+    echo "error: AI CLI returned empty output" >&2
     return 1
   fi
 
@@ -733,6 +838,7 @@ cmd_pr() {
   assert_git_repo
   assert_remote_origin
   assert_not_detached
+  ensure_ai_configured
 
   local branch
   branch=$(git symbolic-ref --short HEAD)
@@ -840,16 +946,23 @@ ${diff_stat}"
     tmpfile=$(mktemp /tmp/gt-pr.XXXXXX)
 
     gum spin --spinner dot --title "Generating ${pr_label} content..." -- \
-      bash -c 'claude --model haiku "$1" > "$2" 2>/dev/null' _ "$prompt" "$tmpfile" || {
+      bash -c '
+        case "$1" in
+          claude)   claude -p --model "$2" "$3" > "$4" 2>/dev/null ;;
+          codex)    codex exec -m "$2" "$3" > "$4" 2>/dev/null ;;
+          opencode) opencode run -q -m "$2" "$3" > "$4" 2>/dev/null ;;
+          gemini)   gemini -p -m "$2" "$3" > "$4" 2>/dev/null ;;
+        esac
+      ' _ "$GT_AI_CLI" "$GT_AI_MODEL" "$prompt" "$tmpfile" || {
       rm -f "$tmpfile"
-      die "Claude CLI failed."
+      die "AI CLI failed."
     }
 
     local raw_output
     raw_output=$(cat "$tmpfile")
     rm -f "$tmpfile"
 
-    [[ -z "$raw_output" ]] && die "Claude CLI returned empty output."
+    [[ -z "$raw_output" ]] && die "AI CLI returned empty output."
 
     # Parse title and description
     title=$(echo "$raw_output" | grep -m1 '^TITLE:' | sed 's/^TITLE:[[:space:]]*//')
@@ -1079,10 +1192,18 @@ main() {
     status)  cmd_status ;;
     cleanup) check_deps; cmd_cleanup ;;
     pr)      check_deps; cmd_pr ;;
+    configure) check_deps; cmd_configure ;;
     self-update) cmd_self_update ;;
     version|--version|-v) cmd_version ;;
     *)
       echo -e "${BOLD}git-tool (gt)${RESET} ${GT_VERSION}"
+      echo ""
+      load_config
+      if [[ -n "$GT_AI_CLI" && -n "$GT_AI_MODEL" ]]; then
+        echo -e "  ${BOLD}AI:${RESET} ${CYAN}${GT_AI_CLI}${RESET} (model: ${CYAN}${GT_AI_MODEL}${RESET})"
+      else
+        echo -e "  ${BOLD}AI:${RESET} ${DIM}not configured${RESET}  ${DIM}— run ${RESET}${GREEN}gt configure${RESET}"
+      fi
       echo ""
       echo -e "  ${GREEN}gt branch${RESET}       Create a new branch off the default branch"
       echo -e "  ${GREEN}gt push${RESET}        Stage, commit with AI message, and push"
@@ -1091,6 +1212,7 @@ main() {
       echo -e "  ${GREEN}gt status${RESET}      Show current branch overview"
       echo -e "  ${GREEN}gt cleanup${RESET}     Delete branches already merged or removed from remote"
       echo -e "  ${GREEN}gt pr${RESET}          Create a pull/merge request with AI-generated description"
+      echo -e "  ${GREEN}gt configure${RESET}   Choose AI CLI tool and model"
       echo -e "  ${GREEN}gt version${RESET}     Show current version"
       echo -e "  ${GREEN}gt self-update${RESET}  Update gt to the latest version"
       echo ""
