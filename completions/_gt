@@ -1,0 +1,22 @@
+#compdef gt
+
+_gt() {
+  local -a commands
+  commands=(
+    'branch:Create a new branch off the default branch'
+    'push:Stage, commit with AI message, and push'
+    'message:Generate a commit message from current changes'
+    'rebase:Rebase current branch onto default branch'
+    'status:Show current branch overview'
+  )
+
+  _arguments '1: :->command'
+
+  case $state in
+    command)
+      _describe 'gt command' commands
+      ;;
+  esac
+}
+
+_gt "$@"
