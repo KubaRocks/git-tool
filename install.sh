@@ -151,7 +151,8 @@ for i in "${!candidate_labels[@]}"; do
   echo -e "  ${GREEN}$((i + 1)))${RESET} ${candidate_labels[$i]}"
 done
 echo ""
-read -rp "  Choose [1]: " choice_numchoice_num="${choice_num:-1}"
+read -rp "  Choose [1]: " choice_num
+choice_num="${choice_num:-1}"
 
 # Validate
 if [[ ! "$choice_num" =~ ^[0-9]+$ ]] || [[ "$choice_num" -lt 1 ]] || [[ "$choice_num" -gt ${#candidates[@]} ]]; then
@@ -162,7 +163,8 @@ fi
 selected="${candidates[$((choice_num - 1))]}"
 
 if [[ "$selected" == "custom" ]]; then
-  read -rp "  Enter path: " selected  selected="${selected/#\~/$HOME}"
+  read -rp "  Enter path: " selected
+  selected="${selected/#\~/$HOME}"
 fi
 
 # Expand and validate
