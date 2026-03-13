@@ -2,7 +2,8 @@
 
 release:
 	@echo "Preparing release..."
-	@today=$$(date +%Y.%m.%d); \
+	@git fetch --tags --quiet; \
+	today=$$(date +%Y.%m.%d); \
 	version="v$$today"; \
 	suffix=1; \
 	while git tag -l "$$version" | grep -q "$$version"; do \

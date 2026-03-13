@@ -4,7 +4,7 @@ A CLI that streamlines the git branch-commit-push workflow with AI-generated com
 
 ## Features
 
-- **`gt branch`** — Create a new branch off the latest default branch. Auto-stashes dirty work, pulls latest, converts input to valid branch names (preserving JIRA ticket IDs like `NI-4567`).
+- **`gt branch`** — Create a new branch off the latest default branch. Auto-stashes dirty work, pulls latest, converts input to valid branch names (preserving JIRA ticket IDs like `ID-4567`).
 
 - **`gt push`** — Interactive file staging with status labels, AI-generated commit messages (accept/edit/regenerate/cancel), auto-pull before commit, smart push with force-with-lease after rebase.
 
@@ -58,11 +58,11 @@ Creates a new branch off the latest default branch. Auto-stashes dirty work, pul
 ▸ Default branch: main
 ▸ Stashing uncommitted changes...
 ▸ Switching to main and pulling latest...
-? Branch name (e.g. NI-4567 refactor order flow)
-> NI-4567 refactor order flow
-▸ Creating branch: NI-4567-refactor-order-flow
+? Branch name (e.g. ID-4567 refactor order flow)
+> ID-4567 refactor order flow
+▸ Creating branch: ID-4567-refactor-order-flow
 ▸ Restoring stashed changes...
-✓ On new branch NI-4567-refactor-order-flow
+✓ On new branch ID-4567-refactor-order-flow
 ```
 
 ### `gt push`
@@ -80,7 +80,7 @@ Select files to stage:
 
 Commit message:
 ─────────────────────────────────────────
-NI-4567: add request caching to API handler
+ID-4567: add request caching to API handler
 ─────────────────────────────────────────
 
 ? What would you like to do?
@@ -99,7 +99,7 @@ Generates a commit message from current changes. Works standalone or piped.
 
 ```
 ❯ gt message
-NI-4567: add request caching to API handler
+ID-4567: add request caching to API handler
 
 ❯ gt message | pbcopy
 ```
@@ -111,7 +111,7 @@ Rebases the current branch onto the default branch. On conflicts, offers AI-assi
 ```
 ❯ gt rebase
 ▸ Fetching latest main...
-▸ Rebasing NI-4567-refactor-order-flow onto origin/main (3 new commit(s))...
+▸ Rebasing ID-4567-refactor-order-flow onto origin/main (3 new commit(s))...
 ✓ Rebased successfully onto main.
 ```
 
@@ -140,8 +140,8 @@ Quick overview of the current branch state.
 ```
 ❯ gt status
 
-Branch:    NI-4567-refactor-order-flow
-Ticket:    NI-4567
+Branch:    ID-4567-refactor-order-flow
+Ticket:    ID-4567
 Dirty:     2 file(s)
 Unpushed:  1 commit(s)
 Last:      add request caching to API handler
