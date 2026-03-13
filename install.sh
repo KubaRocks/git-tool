@@ -6,7 +6,8 @@ set -uo pipefail
 
 # When piped via curl|bash, stdin is the script. Reclaim the terminal.
 if [[ ! -t 0 ]]; then
-  execfi
+  exec < /dev/tty
+fi
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -56,7 +57,8 @@ if [[ ${#missing_deps[@]} -gt 0 ]]; then
         echo -e "  ${BOLD}gum${RESET} — interactive terminal UI"
         if command -v brew &>/dev/null; then
           echo -e "    Install with: ${DIM}brew install gum${RESET}"
-          read -rp "    Install now? [Y/n] " answer          if [[ "${answer:-Y}" =~ ^[Yy]$ ]]; then
+          read -rp "    Install now? [Y/n] " answer
+          if [[ "${answer:-Y}" =~ ^[Yy]$ ]]; then
             brew install gum
             if command -v gum &>/dev/null; then
               success "gum installed."
@@ -73,7 +75,8 @@ if [[ ${#missing_deps[@]} -gt 0 ]]; then
         echo -e "  ${BOLD}claude${RESET} — Claude CLI for AI commit messages"
         if command -v npm &>/dev/null; then
           echo -e "    Install with: ${DIM}npm install -g @anthropic-ai/claude-code${RESET}"
-          read -rp "    Install now? [Y/n] " answer          if [[ "${answer:-Y}" =~ ^[Yy]$ ]]; then
+          read -rp "    Install now? [Y/n] " answer
+          if [[ "${answer:-Y}" =~ ^[Yy]$ ]]; then
             npm install -g @anthropic-ai/claude-code
             if command -v claude &>/dev/null; then
               success "claude installed."
