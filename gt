@@ -859,14 +859,14 @@ case "${1:-}" in
   *)
     echo -e "${BOLD}git-tool (gt)${RESET} ${GT_VERSION}"
     echo ""
-    echo -e "  ${GREEN}gt branch${RESET}    Create a new branch off the default branch"
-    echo -e "  ${GREEN}gt push${RESET}      Stage, commit with AI message, and push"
-    echo -e "  ${GREEN}gt message${RESET}   Generate a commit message from current changes"
-    echo -e "  ${GREEN}gt rebase${RESET}    Rebase current branch onto default branch"
-    echo -e "  ${GREEN}gt status${RESET}    Show current branch overview"
-    echo -e "  ${GREEN}gt cleanup${RESET}      Delete branches already merged or removed from remote"
-    echo -e "  ${GREEN}gt version${RESET}      Show current version"
-    echo -e "  ${GREEN}gt self-update${RESET}   Update gt to the latest version"
+    echo -e "  ${GREEN}gt branch${RESET}       Create a new branch off the default branch"
+    echo -e "  ${GREEN}gt push${RESET}        Stage, commit with AI message, and push"
+    echo -e "  ${GREEN}gt message${RESET}     Generate a commit message from current changes"
+    echo -e "  ${GREEN}gt rebase${RESET}      Rebase current branch onto default branch"
+    echo -e "  ${GREEN}gt status${RESET}      Show current branch overview"
+    echo -e "  ${GREEN}gt cleanup${RESET}     Delete branches already merged or removed from remote"
+    echo -e "  ${GREEN}gt version${RESET}     Show current version"
+    echo -e "  ${GREEN}gt self-update${RESET}  Update gt to the latest version"
     echo ""
     ;;
 esac
