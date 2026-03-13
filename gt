@@ -723,6 +723,85 @@ cmd_version() {
   echo "git-tool (gt) ${GT_VERSION}"
 }
 
+# ── gt self-update ──────────────────────────────────────────────────────────
+cmd_self_update() {
+  local repo_url="https://raw.githubusercontent.com/KubaRocks/git-tool/main"
+
+  # Detect install path
+  local install_path
+  install_path=$(which gt 2>/dev/null) || die "Could not find gt in PATH."
+  info "Installed at: ${BOLD}${install_path}${RESET}"
+
+  # Check current version
+  info "Current version: ${BOLD}${GT_VERSION}${RESET}"
+
+  # Fetch latest version
+  local latest_version
+  latest_version=$(curl -fsSL "${repo_url}/VERSION" 2>/dev/null) || die "Could not check for updates."
+  latest_version=$(echo "$latest_version" | tr -d '[:space:]')
+
+  if [[ "$GT_VERSION" == "$latest_version" ]]; then
+    success "Already up to date."
+    return
+  fi
+
+  info "New version available: ${BOLD}${latest_version}${RESET}"
+  info "Updating: ${BOLD}${GT_VERSION}${RESET} → ${BOLD}${latest_version}${RESET}"
+
+  # Download new version
+  local use_sudo=""
+  if [[ ! -w "$install_path" ]]; then
+    use_sudo="sudo"
+    warn "Requires sudo to write to ${install_path}"
+  fi
+
+  local tmpfile
+  tmpfile=$(mktemp /tmp/gt-update.XXXXXX)
+  if ! curl -fsSL "${repo_url}/gt" -o "$tmpfile" 2>/dev/null; then
+    rm -f "$tmpfile"
+    die "Failed to download update."
+  fi
+
+  $use_sudo cp "$tmpfile" "$install_path"
+  $use_sudo chmod +x "$install_path"
+  rm -f "$tmpfile"
+
+  success "Updated gt to ${BOLD}${latest_version}${RESET}"
+
+  # Update completions if installed
+  _update_completions "$repo_url"
+
+  echo ""
+  echo -e "git-tool (gt) ${GT_VERSION} → ${latest_version}"
+}
+
+_update_completions() {
+  local repo_url="$1"
+
+  # Find installed completions
+  local comp_file=""
+  for dir in "$HOME/.zsh/completions" "$HOME/.local/share/zsh/completions"; do
+    if [[ -f "${dir}/_gt" ]]; then
+      comp_file="${dir}/_gt"
+      break
+    fi
+  done
+
+  [[ -z "$comp_file" ]] && return
+
+  # Download to temp and compare
+  local tmpfile
+  tmpfile=$(mktemp /tmp/gt-comp.XXXXXX)
+  if curl -fsSL "${repo_url}/completions/_gt" -o "$tmpfile" 2>/dev/null; then
+    if ! diff -q "$comp_file" "$tmpfile" &>/dev/null; then
+      cp "$tmpfile" "$comp_file"
+      info "Updated zsh completions."
+      warn "Run ${BOLD}exec zsh${RESET} to reload completions."
+    fi
+  fi
+  rm -f "$tmpfile"
+}
+
 # ── Push Helper ──────────────────────────────────────────────────────────────
 push_branch() {
   local branch="$1"
@@ -775,6 +854,7 @@ case "${1:-}" in
   rebase)  cmd_rebase ;;
   status)  cmd_status ;;
   cleanup) check_deps; cmd_cleanup ;;
+  self-update) cmd_self_update ;;
   version|--version|-v) cmd_version ;;
   *)
     echo -e "${BOLD}git-tool (gt)${RESET} ${GT_VERSION}"
