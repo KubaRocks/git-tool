@@ -718,6 +718,11 @@ cmd_cleanup() {
   success "Deleted ${deleted} branch(es). Skipped ${skipped}."
 }
 
+# ── gt version ──────────────────────────────────────────────────────────────
+cmd_version() {
+  echo "git-tool (gt) ${GT_VERSION}"
+}
+
 # ── Push Helper ──────────────────────────────────────────────────────────────
 push_branch() {
   local branch="$1"
@@ -770,16 +775,18 @@ case "${1:-}" in
   rebase)  cmd_rebase ;;
   status)  cmd_status ;;
   cleanup) check_deps; cmd_cleanup ;;
-  --version|-v) echo "gt ${GT_VERSION}" ;;
+  version|--version|-v) cmd_version ;;
   *)
-    echo -e "${BOLD}gt${RESET} — Git Tool v${GT_VERSION}"
+    echo -e "${BOLD}git-tool (gt)${RESET} ${GT_VERSION}"
     echo ""
     echo -e "  ${GREEN}gt branch${RESET}    Create a new branch off the default branch"
     echo -e "  ${GREEN}gt push${RESET}      Stage, commit with AI message, and push"
     echo -e "  ${GREEN}gt message${RESET}   Generate a commit message from current changes"
     echo -e "  ${GREEN}gt rebase${RESET}    Rebase current branch onto default branch"
     echo -e "  ${GREEN}gt status${RESET}    Show current branch overview"
-    echo -e "  ${GREEN}gt cleanup${RESET}   Delete branches already merged or removed from remote"
+    echo -e "  ${GREEN}gt cleanup${RESET}      Delete branches already merged or removed from remote"
+    echo -e "  ${GREEN}gt version${RESET}      Show current version"
+    echo -e "  ${GREEN}gt self-update${RESET}   Update gt to the latest version"
     echo ""
     ;;
 esac
