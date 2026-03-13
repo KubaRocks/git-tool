@@ -4,7 +4,7 @@ set -uo pipefail
 # gt — Git Tool CLI
 # Streamlines the git branch-commit-push workflow with AI-generated commit messages.
 
-GT_VERSION="1.0.0"
+GT_VERSION="v2026.03.13"
 
 # ── Colors & Styles ──────────────────────────────────────────────────────────
 RED='\033[0;31m'
