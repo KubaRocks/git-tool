@@ -90,7 +90,7 @@ ID-4567: add request caching to API handler
   Cancel
 
 ✓ Committed.
-✓ Pushed to origin/NI-4567-refactor-order-flow
+✓ Pushed to origin/ID-4567-refactor-order-flow
 ```
 
 ### `gt message`

@@ -86,7 +86,7 @@ cmd_branch() {
 
   # 4. Prompt for branch name
   local raw_name
-  raw_name=$(gum input --placeholder "Branch name (e.g. NI-4567 refactor order flow)")
+  raw_name=$(gum input --placeholder "Branch name (e.g. ID-4567 refactor order flow)")
   [[ -z "$raw_name" ]] && die "No branch name provided."
 
   # 5. Convert to valid branch name

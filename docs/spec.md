@@ -24,9 +24,9 @@ Creates a new branch off the latest default branch.
 4. Prompt for branch name using `gum input` with placeholder text
 5. Convert input to valid branch name:
    - Replace spaces with dashes
-   - Lowercase everything except JIRA ticket IDs (e.g. `NI-4567`)
+   - Lowercase everything except JIRA ticket IDs (e.g. `ID-4567`)
    - Strip invalid characters
-   - Example: `NI-4567 refactor order flow` → `NI-4567-refactor-order-flow`
+   - Example: `ID-4567 refactor order flow` → `ID-4567-refactor-order-flow`
 6. Create and switch to the new branch (`git checkout -b <branch>`)
 7. If changes were stashed in step 2, pop the stash (`git stash pop`)
 
@@ -66,7 +66,7 @@ Stages files, generates an AI commit message, commits, and pushes — all in one
 - **First line:** Max 80 characters
 - **With ticket ID** (extracted from branch name using `[A-Z]+-[0-9]+`):
   ```
-  NI-4567: short description of changes
+  ID-4567: short description of changes
 
   Longer description of what changed and why.
   ```
