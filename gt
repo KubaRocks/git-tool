@@ -745,6 +745,10 @@ cmd_pr() {
 
   [[ "$branch" == "$default_branch" ]] && die "Already on ${default_branch}. Create a feature branch first."
 
+  # Extract ticket ID from branch name
+  local ticket_id
+  ticket_id=$(extract_ticket_id "$branch")
+
   # Detect platform from remote URL
   local remote_url platform pr_cmd pr_label
   remote_url=$(git remote get-url origin)
@@ -794,6 +798,12 @@ cmd_pr() {
   local diff_stat
   diff_stat=$(git diff --stat "${default_branch}..HEAD" 2>/dev/null)
 
+  # Reserve space for ticket prefix in title
+  local max_title_len=80
+  if [[ -n "$ticket_id" ]]; then
+    max_title_len=$(( 80 - ${#ticket_id} - 2 ))  # "ID-123: " prefix
+  fi
+
   local prompt="Generate a pull request title and description based on the branch and commits below.
 
 CRITICAL: Your response must follow this EXACT format with no other text:
@@ -803,10 +813,10 @@ DESCRIPTION:
 <description here>
 
 Requirements for TITLE:
-- Maximum 80 characters
+- Maximum ${max_title_len} characters
 - Start with lowercase verb (add/fix/update/refactor/remove)
 - Be specific and concise
-- Do NOT include ticket/issue prefixes
+- Do NOT include any ticket/issue prefixes (like JIRA-123)
 
 Requirements for DESCRIPTION:
 - Use markdown formatting
@@ -846,10 +856,15 @@ ${diff_stat}"
     description=$(echo "$raw_output" | sed -n '/^DESCRIPTION:/,$ p' | tail -n +2)
 
     # Clean up
-    title=$(echo "$title" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | head -c 80)
+    title=$(echo "$title" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | head -c "$max_title_len")
     description=$(echo "$description" | sed 's/^[[:space:]]*$//' | sed '/./,$!d')
 
-    [[ -z "$title" ]] && title="$(echo "$commit_log" | head -1)"
+    [[ -z "$title" ]] && title="$(echo "$commit_log" | head -1 | head -c "$max_title_len")"
+
+    # Prepend ticket ID
+    if [[ -n "$ticket_id" ]]; then
+      title="${ticket_id}: ${title}"
+    fi
     [[ -z "$description" ]] && description="$(echo "$commit_log")"
 
     # Show preview
