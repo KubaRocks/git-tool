@@ -14,6 +14,8 @@ A CLI that streamlines the git branch-commit-push workflow with AI-generated com
 
 - **`gt status`** — Quick overview: branch name, JIRA ticket, dirty files, unpushed commits, last commit message.
 
+- **`gt cleanup`** — Delete stale local branches. Categorizes branches as safe-to-delete (merged, remote gone), merged-with-remote (choose local/remote/skip), or unmerged-remote-gone (with commit count context).
+
 ## Install
 
 ```bash
@@ -139,6 +141,43 @@ Ticket:    NI-4567
 Dirty:     2 file(s)
 Unpushed:  1 commit(s)
 Last:      add request caching to API handler
+```
+
+### `gt cleanup`
+
+Deletes local branches that have been merged or whose remote has been deleted. Branches are grouped by safety level with appropriate prompts.
+
+```
+❯ gt cleanup
+▸ Fetching and pruning remote references...
+
+Found 4 branch(es) to review:
+  2 safe to delete (merged, remote gone)
+  1 merged but remote still exists
+  1 unmerged with remote gone
+
+── Safe to delete (merged, remote gone) ──
+Select branches to delete:
+> ✓ fix/login-bug
+  ✓ feature/add-caching
+
+✓ Deleted fix/login-bug
+✓ Deleted feature/add-caching
+
+── Merged but remote still exists ──
+Branch: feature/old-api:
+> Delete local only
+  Delete local + remote
+  Skip
+
+✓ Deleted local feature/old-api
+
+── Unmerged but remote gone (caution) ──
+Select branches to force-delete:
+  · experiment/new-ui (3 commits ahead)
+
+─────────────────────────────────────────
+✓ Deleted 3 branch(es). Skipped 1.
 ```
 
 ## License

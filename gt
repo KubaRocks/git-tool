@@ -503,6 +503,191 @@ cmd_status() {
   echo ""
 }
 
+# ── gt cleanup ────────────────────────────────────────────────────────────────
+cmd_cleanup() {
+  assert_git_repo
+  assert_remote_origin
+  assert_not_detached
+
+  local branch
+  branch=$(git symbolic-ref --short HEAD)
+
+  # Detect default branch from remote
+  local default_branch
+  default_branch=$(git remote show origin 2>/dev/null | grep 'HEAD branch' | awk '{print $NF}')
+  [[ -z "$default_branch" ]] && die "Could not detect default branch from origin."
+
+  # Fetch and prune to sync remote state
+  info "Fetching and pruning remote references..."
+  git fetch --prune
+
+  # Get merged branches (excluding current and default)
+  local merged_branches=()
+  while IFS= read -r b; do
+    [[ -z "$b" ]] && continue
+    [[ "$b" == "$branch" || "$b" == "$default_branch" ]] && continue
+    merged_branches+=("$b")
+  done < <(git branch --merged "$default_branch" --format='%(refname:short)')
+
+  # Get all local branches (excluding current and default)
+  local all_branches=()
+  while IFS= read -r b; do
+    [[ -z "$b" ]] && continue
+    [[ "$b" == "$branch" || "$b" == "$default_branch" ]] && continue
+    all_branches+=("$b")
+  done < <(git branch --format='%(refname:short)')
+
+  # Categorize branches
+  local safe_to_delete=()
+  local merged_remote_exists=()
+  local unmerged_remote_gone=()
+
+  for b in "${all_branches[@]}"; do
+    local is_merged=0
+    for m in "${merged_branches[@]}"; do
+      if [[ "$b" == "$m" ]]; then
+        is_merged=1
+        break
+      fi
+    done
+
+    local remote_exists=0
+    if git rev-parse --verify --quiet "refs/remotes/origin/${b}" &>/dev/null; then
+      remote_exists=1
+    fi
+
+    if [[ $is_merged -eq 1 && $remote_exists -eq 0 ]]; then
+      safe_to_delete+=("$b")
+    elif [[ $is_merged -eq 1 && $remote_exists -eq 1 ]]; then
+      merged_remote_exists+=("$b")
+    elif [[ $is_merged -eq 0 && $remote_exists -eq 0 ]]; then
+      unmerged_remote_gone+=("$b")
+    fi
+    # Not merged + remote exists = active, skip
+  done
+
+  local total=$(( ${#safe_to_delete[@]} + ${#merged_remote_exists[@]} + ${#unmerged_remote_gone[@]} ))
+
+  if [[ $total -eq 0 ]]; then
+    success "Nothing to clean up. All branches look active."
+    return
+  fi
+
+  # Display summary
+  echo ""
+  echo -e "${BOLD}Branch cleanup summary:${RESET}"
+  echo -e "  ${GREEN}Safe to delete (merged, remote gone):${RESET}    ${#safe_to_delete[@]}"
+  echo -e "  ${YELLOW}Merged but remote exists:${RESET}                ${#merged_remote_exists[@]}"
+  echo -e "  ${RED}Unmerged but remote gone:${RESET}                ${#unmerged_remote_gone[@]}"
+  echo ""
+
+  local deleted=0
+
+  # Category 1: Safe to delete (merged + remote gone)
+  if [[ ${#safe_to_delete[@]} -gt 0 ]]; then
+    echo -e "${GREEN}${BOLD}── Safe to delete (merged, remote gone) ──${RESET}"
+    local selected_csv
+    selected_csv=$(printf "%s," "${safe_to_delete[@]}")
+    selected_csv="${selected_csv%,}"
+
+    local chosen
+    chosen=$(printf "%s\n" "${safe_to_delete[@]}" | gum choose --no-limit --selected="$selected_csv" --header "Select branches to delete:") || true
+
+    if [[ -n "$chosen" ]]; then
+      while IFS= read -r b; do
+        [[ -z "$b" ]] && continue
+        if git branch -d "$b" &>/dev/null; then
+          info "Deleted ${BOLD}${b}${RESET}"
+          deleted=$(( deleted + 1 ))
+        else
+          warn "Failed to delete ${BOLD}${b}${RESET}"
+        fi
+      done <<< "$chosen"
+    fi
+    echo ""
+  fi
+
+  # Category 2: Merged but remote still exists
+  if [[ ${#merged_remote_exists[@]} -gt 0 ]]; then
+    echo -e "${YELLOW}${BOLD}── Merged but remote still exists ──${RESET}"
+    for b in "${merged_remote_exists[@]}"; do
+      local action
+      action=$(gum choose "Delete local only" "Delete local + remote" "Skip" --header "Branch: ${b}") || true
+
+      case "$action" in
+        "Delete local only")
+          if git branch -d "$b" &>/dev/null; then
+            info "Deleted local ${BOLD}${b}${RESET}"
+            deleted=$(( deleted + 1 ))
+          else
+            warn "Failed to delete ${BOLD}${b}${RESET}"
+          fi
+          ;;
+        "Delete local + remote")
+          if git branch -d "$b" &>/dev/null; then
+            info "Deleted local ${BOLD}${b}${RESET}"
+            deleted=$(( deleted + 1 ))
+          else
+            warn "Failed to delete local ${BOLD}${b}${RESET}"
+          fi
+          if git push origin --delete "$b" &>/dev/null; then
+            info "Deleted remote ${BOLD}origin/${b}${RESET}"
+          else
+            warn "Failed to delete remote ${BOLD}origin/${b}${RESET}"
+          fi
+          ;;
+        *)
+          ;;
+      esac
+    done
+    echo ""
+  fi
+
+  # Category 3: Unmerged but remote gone
+  if [[ ${#unmerged_remote_gone[@]} -gt 0 ]]; then
+    echo -e "${RED}${BOLD}── Unmerged but remote gone (caution) ──${RESET}"
+    # Build labels with commit counts; keep parallel array for name lookup
+    local labels=()
+    local label_branches=()
+    for b in "${unmerged_remote_gone[@]}"; do
+      local ahead
+      ahead=$(git rev-list --count "${default_branch}..${b}" 2>/dev/null || echo "?")
+      labels+=("${b} (${ahead} commits ahead)")
+      label_branches+=("$b")
+    done
+
+    local chosen
+    chosen=$(printf "%s\n" "${labels[@]}" | gum choose --no-limit --header "Select branches to force-delete:") || true
+
+    if [[ -n "$chosen" ]]; then
+      while IFS= read -r label; do
+        [[ -z "$label" ]] && continue
+        # Find matching branch from parallel array
+        local b=""
+        for i in "${!labels[@]}"; do
+          if [[ "${labels[$i]}" == "$label" ]]; then
+            b="${label_branches[$i]}"
+            break
+          fi
+        done
+        [[ -z "$b" ]] && continue
+        if git branch -D "$b" &>/dev/null; then
+          info "Force-deleted ${BOLD}${b}${RESET}"
+          deleted=$(( deleted + 1 ))
+        else
+          warn "Failed to delete ${BOLD}${b}${RESET}"
+        fi
+      done <<< "$chosen"
+    fi
+    echo ""
+  fi
+
+  # Final summary
+  echo ""
+  local skipped=$(( total - deleted ))
+  success "Deleted ${deleted} branch(es). Skipped ${skipped}."
+}
+
 # ── Push Helper ──────────────────────────────────────────────────────────────
 push_branch() {
   local branch="$1"
@@ -554,6 +739,7 @@ case "${1:-}" in
   message) check_deps; cmd_message ;;
   rebase)  cmd_rebase ;;
   status)  cmd_status ;;
+  cleanup) check_deps; cmd_cleanup ;;
   --version|-v) echo "gt ${GT_VERSION}" ;;
   *)
     echo -e "${BOLD}gt${RESET} — Git Tool v${GT_VERSION}"
@@ -563,6 +749,7 @@ case "${1:-}" in
     echo -e "  ${GREEN}gt message${RESET}   Generate a commit message from current changes"
     echo -e "  ${GREEN}gt rebase${RESET}    Rebase current branch onto default branch"
     echo -e "  ${GREEN}gt status${RESET}    Show current branch overview"
+    echo -e "  ${GREEN}gt cleanup${RESET}   Delete branches already merged or removed from remote"
     echo ""
     ;;
 esac
