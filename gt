@@ -521,13 +521,16 @@ cmd_cleanup() {
   info "Fetching and pruning remote references..."
   git fetch --prune
 
+  # Use the remote ref for merge checks — local default branch may be stale
+  local remote_default="origin/${default_branch}"
+
   # Get merged branches (excluding default)
   local merged_branches=()
   while IFS= read -r b; do
     [[ -z "$b" ]] && continue
     [[ "$b" == "$default_branch" ]] && continue
     merged_branches+=("$b")
-  done < <(git branch --merged "$default_branch" --format='%(refname:short)')
+  done < <(git branch --merged "$remote_default" --format='%(refname:short)')
 
   # Get all local branches (excluding default)
   local all_branches=()
@@ -555,10 +558,10 @@ cmd_cleanup() {
     # if its patch-id already exists in the default branch
     if [[ $is_merged -eq 0 ]]; then
       local mb sq
-      mb=$(git merge-base "$default_branch" "$b" 2>/dev/null || true)
+      mb=$(git merge-base "$remote_default" "$b" 2>/dev/null || true)
       if [[ -n "$mb" ]]; then
         sq=$(git commit-tree "${b}^{tree}" -p "$mb" -m "temp" 2>/dev/null || true)
-        if [[ -n "$sq" ]] && ! git cherry "$default_branch" "$sq" 2>/dev/null | grep -q "^+"; then
+        if [[ -n "$sq" ]] && ! git cherry "$remote_default" "$sq" 2>/dev/null | grep -q "^+"; then
           is_merged=1
         fi
       fi
@@ -620,7 +623,7 @@ cmd_cleanup() {
       while IFS= read -r b; do
         [[ -z "$b" ]] && continue
         _ensure_not_on_branch "$b"
-        if git branch -d "$b" &>/dev/null; then
+        if git branch -D "$b" &>/dev/null; then
           info "Deleted ${BOLD}${b}${RESET}"
           deleted=$(( deleted + 1 ))
         else
@@ -641,7 +644,7 @@ cmd_cleanup() {
       case "$action" in
         "Delete local only")
           _ensure_not_on_branch "$b"
-          if git branch -d "$b" &>/dev/null; then
+          if git branch -D "$b" &>/dev/null; then
             info "Deleted local ${BOLD}${b}${RESET}"
             deleted=$(( deleted + 1 ))
           else
@@ -650,7 +653,7 @@ cmd_cleanup() {
           ;;
         "Delete local + remote")
           _ensure_not_on_branch "$b"
-          if git branch -d "$b" &>/dev/null; then
+          if git branch -D "$b" &>/dev/null; then
             info "Deleted local ${BOLD}${b}${RESET}"
             deleted=$(( deleted + 1 ))
           else
@@ -677,7 +680,7 @@ cmd_cleanup() {
     local label_branches=()
     for b in "${unmerged_remote_gone[@]}"; do
       local ahead
-      ahead=$(git rev-list --count "${default_branch}..${b}" 2>/dev/null || echo "?")
+      ahead=$(git rev-list --count "${remote_default}..${b}" 2>/dev/null || echo "?")
       labels+=("${b} (${ahead} commits ahead)")
       label_branches+=("$b")
     done
