@@ -7,6 +7,19 @@ set -uo pipefail
 # Note: do NOT use `exec < /dev/tty` here — it would steal stdin from bash
 # mid-pipe and hang the script. Instead, individual `read` calls use `< /dev/tty`.
 
+# Helper: prompt user if TTY is available, otherwise use default value
+# Usage: prompt_or_default VARNAME "prompt text" "default"
+prompt_or_default() {
+  local _var=$1 _prompt=$2 _default=$3
+  if [[ -e /dev/tty ]]; then
+    read -rp "$_prompt" "$_var" < /dev/tty
+    eval "$_var=\"\${$_var:-$_default}\""
+  else
+    printf '%s%s\n' "$_prompt" "$_default"
+    eval "$_var=\"$_default\""
+  fi
+}
+
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
@@ -55,8 +68,8 @@ if [[ ${#missing_deps[@]} -gt 0 ]]; then
         echo -e "  ${BOLD}gum${RESET} — interactive terminal UI"
         if command -v brew &>/dev/null; then
           echo -e "    Install with: ${DIM}brew install gum${RESET}"
-          read -rp "    Install now? [Y/n] " answer < /dev/tty
-          if [[ "${answer:-Y}" =~ ^[Yy]$ ]]; then
+          prompt_or_default answer "    Install now? [Y/n] " "Y"
+          if [[ "$answer" =~ ^[Yy]$ ]]; then
             brew install gum
             if command -v gum &>/dev/null; then
               success "gum installed."
@@ -73,8 +86,8 @@ if [[ ${#missing_deps[@]} -gt 0 ]]; then
         echo -e "  ${BOLD}claude${RESET} — Claude CLI for AI commit messages"
         if command -v npm &>/dev/null; then
           echo -e "    Install with: ${DIM}npm install -g @anthropic-ai/claude-code${RESET}"
-          read -rp "    Install now? [Y/n] " answer < /dev/tty
-          if [[ "${answer:-Y}" =~ ^[Yy]$ ]]; then
+          prompt_or_default answer "    Install now? [Y/n] " "Y"
+          if [[ "$answer" =~ ^[Yy]$ ]]; then
             npm install -g @anthropic-ai/claude-code
             if command -v claude &>/dev/null; then
               success "claude installed."
@@ -149,8 +162,7 @@ for i in "${!candidate_labels[@]}"; do
   echo -e "  ${GREEN}$((i + 1)))${RESET} ${candidate_labels[$i]}"
 done
 echo ""
-read -rp "  Choose [1]: " choice_num < /dev/tty
-choice_num="${choice_num:-1}"
+prompt_or_default choice_num "  Choose [1]: " "1"
 
 # Validate
 if [[ ! "$choice_num" =~ ^[0-9]+$ ]] || [[ "$choice_num" -lt 1 ]] || [[ "$choice_num" -gt ${#candidates[@]} ]]; then
@@ -161,7 +173,7 @@ fi
 selected="${candidates[$((choice_num - 1))]}"
 
 if [[ "$selected" == "custom" ]]; then
-  read -rp "  Enter path: " selected < /dev/tty
+  prompt_or_default selected "  Enter path: " ""
   selected="${selected/#\~/$HOME}"
 fi
 
