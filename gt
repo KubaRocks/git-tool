@@ -67,22 +67,22 @@ cmd_branch() {
 
   # 1. Detect default branch
   local default_branch
-  default_branch=$(git remote show origin 2>/dev/null | grep 'HEAD branch' | awk '{print $NF}')
+  default_branch=$(gum spin --spinner dot --title "Detecting default branch..." -- \
+    bash -c 'git remote show origin 2>/dev/null | grep "HEAD branch" | awk "{print \$NF}"')
   [[ -z "$default_branch" ]] && die "Could not detect default branch from origin."
   info "Default branch: ${BOLD}${default_branch}${RESET}"
 
   # 2. Stash if dirty
   local stashed=0
   if [[ -n $(git status --porcelain) ]]; then
-    info "Stashing uncommitted changes..."
-    git stash push -m "gt-auto-stash"
+    gum spin --spinner dot --title "Stashing uncommitted changes..." -- \
+      git stash push -m "gt-auto-stash"
     stashed=1
   fi
 
   # 3. Switch to default branch and pull
-  info "Switching to ${BOLD}${default_branch}${RESET} and pulling latest..."
-  git checkout "$default_branch"
-  git pull
+  gum spin --spinner dot --title "Switching to ${default_branch} and pulling latest..." -- \
+    bash -c 'git checkout "$1" 2>&1 && git pull 2>&1' _ "$default_branch"
 
   # 4. Prompt for branch name
   local raw_name
@@ -115,12 +115,12 @@ cmd_branch() {
   info "Creating branch: ${BOLD}${branch_name}${RESET}"
 
   # 6. Create and switch to new branch
-  git checkout -b "$branch_name"
+  git checkout -b "$branch_name" &>/dev/null
 
   # 7. Pop stash if needed
   if [[ $stashed -eq 1 ]]; then
     info "Restoring stashed changes..."
-    if ! git stash pop; then
+    if ! git stash pop &>/dev/null; then
       warn "Merge conflicts occurred while restoring stashed changes."
       warn "Resolve conflicts manually, then run: git stash drop"
     fi
@@ -261,20 +261,19 @@ cmd_push() {
     local remote_ahead
     remote_ahead=$(git rev-list --count "HEAD..@{upstream}" 2>/dev/null || echo "0")
     if [[ "$remote_ahead" -gt 0 ]]; then
-      info "Pulling ${remote_ahead} remote change(s) before commit..."
-      git stash push -m "gt-pre-pull-stash" --keep-index
-      if ! git pull --rebase; then
+      git stash push -m "gt-pre-pull-stash" --keep-index &>/dev/null
+      if ! gum spin --spinner dot --title "Pulling ${remote_ahead} remote change(s)..." -- git pull --rebase 2>&1; then
         warn "Pull failed. Restoring your changes..."
-        git rebase --abort 2>/dev/null
-        git stash pop
+        git rebase --abort &>/dev/null
+        git stash pop &>/dev/null
         die "Could not pull remote changes. Resolve manually."
       fi
-      git stash pop 2>/dev/null || true
+      git stash pop &>/dev/null || true
     fi
   fi
 
   # 7. Commit
-  git commit -m "$commit_msg"
+  git commit -m "$commit_msg" &>/dev/null
   success "Committed."
 
   # 8. Push
@@ -387,14 +386,15 @@ cmd_rebase() {
 
   # Detect default branch
   local default_branch
-  default_branch=$(git remote show origin 2>/dev/null | grep 'HEAD branch' | awk '{print $NF}')
+  default_branch=$(gum spin --spinner dot --title "Detecting default branch..." -- \
+    bash -c 'git remote show origin 2>/dev/null | grep "HEAD branch" | awk "{print \$NF}"')
   [[ -z "$default_branch" ]] && die "Could not detect default branch from origin."
 
   [[ "$branch" == "$default_branch" ]] && die "Already on ${default_branch}. Switch to a feature branch first."
 
   # Fetch latest
-  info "Fetching latest ${BOLD}${default_branch}${RESET}..."
-  git fetch origin "$default_branch"
+  gum spin --spinner dot --title "Fetching latest ${default_branch}..." -- \
+    git fetch origin "$default_branch"
 
   # Check if rebase is needed
   local behind
@@ -407,19 +407,19 @@ cmd_rebase() {
   # Auto-stash if dirty
   local stashed=0
   if [[ -n $(git status --porcelain) ]]; then
-    info "Stashing uncommitted changes..."
-    git stash push -m "gt-auto-stash-rebase"
+    gum spin --spinner dot --title "Stashing uncommitted changes..." -- \
+      git stash push -m "gt-auto-stash-rebase"
     stashed=1
   fi
 
-  info "Rebasing ${BOLD}${branch}${RESET} onto ${BOLD}origin/${default_branch}${RESET} (${behind} new commit(s))..."
+  info "Rebasing onto ${BOLD}${default_branch}${RESET} (${behind} new commit(s))..."
 
   # Attempt rebase
-  if git rebase "origin/${default_branch}"; then
+  if git rebase "origin/${default_branch}" &>/dev/null; then
     success "Rebased successfully onto ${BOLD}${default_branch}${RESET}."
     if [[ $stashed -eq 1 ]]; then
       info "Restoring stashed changes..."
-      if ! git stash pop; then
+      if ! git stash pop &>/dev/null; then
         warn "Conflicts while restoring stashed changes. Resolve manually, then: git stash drop"
       fi
     fi
@@ -458,7 +458,7 @@ Resolve all merge conflicts in these files. Look at the conflict markers (<<<<<<
         claude "$resolve_prompt"
         if [[ $stashed -eq 1 ]]; then
           info "Restoring stashed changes..."
-          git stash pop || warn "Conflicts while restoring stash. Resolve manually, then: git stash drop"
+          git stash pop &>/dev/null || warn "Conflicts while restoring stash. Resolve manually, then: git stash drop"
         fi
         ;;
       "Codex")
@@ -466,7 +466,7 @@ Resolve all merge conflicts in these files. Look at the conflict markers (<<<<<<
         codex "$resolve_prompt"
         if [[ $stashed -eq 1 ]]; then
           info "Restoring stashed changes..."
-          git stash pop || warn "Conflicts while restoring stash. Resolve manually, then: git stash drop"
+          git stash pop &>/dev/null || warn "Conflicts while restoring stash. Resolve manually, then: git stash drop"
         fi
         ;;
       "Abort rebase")
@@ -474,7 +474,7 @@ Resolve all merge conflicts in these files. Look at the conflict markers (<<<<<<
         info "Rebase aborted. Branch is unchanged."
         if [[ $stashed -eq 1 ]]; then
           info "Restoring stashed changes..."
-          git stash pop || warn "Conflicts while restoring stash. Resolve manually, then: git stash drop"
+          git stash pop &>/dev/null || warn "Conflicts while restoring stash. Resolve manually, then: git stash drop"
         fi
         ;;
     esac
@@ -525,13 +525,11 @@ cmd_cleanup() {
   local branch
   branch=$(git symbolic-ref --short HEAD)
 
-  # Detect default branch from remote
+  # Detect default branch and fetch in one spinner
   local default_branch
-  default_branch=$(git remote show origin 2>/dev/null | grep 'HEAD branch' | awk '{print $NF}')
+  default_branch=$(gum spin --spinner dot --title "Fetching and pruning remote references..." -- \
+    bash -c 'git fetch --prune 2>&1 >/dev/null; git remote show origin 2>/dev/null | grep "HEAD branch" | awk "{print \$NF}"')
   [[ -z "$default_branch" ]] && die "Could not detect default branch from origin."
-
-  # Fetch and prune to sync remote state
-  gum spin --spinner dot --title "Fetching and pruning remote references..." -- git fetch --prune
 
   # Use the remote ref for merge checks — local default branch may be stale
   local remote_default="origin/${default_branch}"
@@ -828,7 +826,7 @@ push_branch() {
     push_cmd="git push -u origin ${branch}"
   fi
 
-  if ! $push_cmd 2>&1; then
+  if ! gum spin --spinner dot --title "Pushing to origin/${branch}..." -- $push_cmd 2>&1; then
     # Check if local branch has diverged from remote (e.g. after rebase)
     local local_base remote_base
     local_base=$(git merge-base HEAD "refs/remotes/origin/${branch}" 2>/dev/null || true)
@@ -840,7 +838,7 @@ push_branch() {
       local choice
       choice=$(gum choose "Force push (--force-with-lease)" "Abort" --header "Push was rejected:")
       if [[ "$choice" == "Force push (--force-with-lease)" ]]; then
-        if ! git push --force-with-lease; then
+        if ! gum spin --spinner dot --title "Force pushing..." -- git push --force-with-lease 2>&1; then
           die "Force push failed."
         fi
       else
@@ -849,9 +847,8 @@ push_branch() {
       fi
     else
       # Not diverged — try pull --rebase then push again
-      info "Push rejected. Pulling with rebase..."
-      if git pull --rebase; then
-        if ! $push_cmd; then
+      if gum spin --spinner dot --title "Pulling with rebase..." -- git pull --rebase 2>&1; then
+        if ! gum spin --spinner dot --title "Pushing to origin/${branch}..." -- $push_cmd 2>&1; then
           die "Push failed after pull. Resolve manually."
         fi
       else
