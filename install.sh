@@ -60,9 +60,6 @@ if ! command -v gum &>/dev/null; then
   missing_deps+=("gum")
 fi
 
-if ! command -v claude &>/dev/null; then
-  missing_deps+=("claude")
-fi
 
 if [[ ${#missing_deps[@]} -gt 0 ]]; then
   warn "Missing dependencies: ${missing_deps[*]}"
@@ -88,30 +85,12 @@ if [[ ${#missing_deps[@]} -gt 0 ]]; then
           echo -e "    See: ${DIM}https://github.com/charmbracelet/gum#installation${RESET}"
         fi
         ;;
-      claude)
-        echo -e "  ${BOLD}claude${RESET} — Claude CLI for AI commit messages"
-        if command -v npm &>/dev/null; then
-          echo -e "    Install with: ${DIM}npm install -g @anthropic-ai/claude-code${RESET}"
-          prompt_or_default answer "    Install now? [Y/n] " "Y"
-          if [[ "$answer" =~ ^[Yy]$ ]]; then
-            npm install -g @anthropic-ai/claude-code
-            if command -v claude &>/dev/null; then
-              success "claude installed."
-            else
-              error "Failed to install claude."
-              exit 1
-            fi
-          fi
-        else
-          echo -e "    See: ${DIM}https://docs.anthropic.com/en/docs/claude-cli${RESET}"
-        fi
-        ;;
     esac
     echo ""
   done
 
   # Re-check after install attempts
-  if ! command -v gum &>/dev/null || ! command -v claude &>/dev/null; then
+  if ! command -v gum &>/dev/null; then
     warn "Some dependencies are still missing. gt will prompt you when they're needed."
     echo ""
   fi
@@ -262,5 +241,6 @@ echo ""
 echo -e "${DIM}─────────────────────────────────────────${RESET}"
 success "gt installed successfully!"
 echo ""
-echo -e "  Run ${BOLD}gt${RESET} to get started."
+echo -e "  Run ${BOLD}gt configure${RESET} to set up your AI CLI tool and model."
+echo -e "  Then run ${BOLD}gt${RESET} to see all available commands."
 echo ""

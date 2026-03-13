@@ -6,8 +6,8 @@ A bash CLI tool that streamlines the git branch-commit-push workflow with AI-gen
 
 - **Language:** Bash script
 - **Location:** `~/bin/gt`
-- **Dependencies:** `gum` (charmbracelet), `claude` CLI
-- **Dependency check:** On startup, verify both are available. If missing, print install instructions and exit.
+- **Dependencies:** `gum` (charmbracelet), one of: `claude`, `codex`, `opencode`, or `gemini` CLI
+- **Dependency check:** On startup, verify `gum` is available. AI tool availability is checked when commands need it, based on configuration.
 - **Output:** Colored and styled using `gum` and ANSI escape codes
 
 ## Commands
@@ -49,7 +49,7 @@ Stages files, generates an AI commit message, commits, and pushes — all in one
    - Stage selected files with `git add`
 4. Generate commit message:
    - Collect `git diff --staged` and current branch name
-   - Send to `claude` CLI with a prompt instructing the format (see below)
+   - Send to configured AI CLI tool with a prompt instructing the format (see below)
    - Show a `gum spin` spinner with "Generating commit message..." during generation
 5. Display generated message and prompt with 4 options:
    - **Accept** — use the message as-is
@@ -120,6 +120,59 @@ Prints the current version.
 
 Aliases: `gt --version`, `gt -v`
 
+### `gt pr`
+
+Creates a pull request (GitHub) or merge request (GitLab) with AI-generated title and description.
+
+**Flow:**
+
+1. Assert git repo, remote origin, not detached
+2. Ensure AI is configured (auto-launch `gt configure` if not)
+3. Detect default branch from remote
+4. Extract ticket ID from branch name
+5. Detect platform (GitHub/GitLab) from remote URL, check for `gh`/`glab` CLI
+6. Auto-push branch to remote if needed
+7. Gather context: commit log and diff stats since default branch
+8. Generate title and description via configured AI tool (accept/edit/regenerate/cancel)
+9. Prepend ticket ID to title if found
+10. Create PR/MR via `gh pr create` or `glab mr create`
+
+### `gt configure`
+
+Choose which AI CLI tool and model `gt` uses for content generation.
+
+**Config file:** `~/.config/git-tool/config` (shell variables, sourceable with `source`)
+
+```bash
+GT_AI_CLI="claude"
+GT_AI_MODEL="haiku"
+```
+
+**Supported CLI tools:**
+
+| Tool | Binary | Non-interactive invocation | Model flag |
+|------|--------|---------------------------|------------|
+| Claude | `claude` | `claude -p --model <model> "$prompt"` | `--model` |
+| Codex | `codex` | `codex exec -m <model> "$prompt"` | `-m` |
+| OpenCode | `opencode` | `opencode run -q -m <model> "$prompt"` | `-m` |
+| Gemini | `gemini` | `gemini -p -m <model> "$prompt"` | `-m` |
+
+**Flow:**
+
+1. Present supported CLI tools via `gum choose`
+2. Validate selected tool is installed. If not → show install instructions and abort
+3. Query for available models:
+   - Claude, Codex, Gemini: ask the AI tool itself to list models
+   - OpenCode: use `opencode models` command
+   - Fallback: manual input via `gum input` if query fails
+4. Present models via `gum choose` for user to pick
+5. Save `GT_AI_CLI` and `GT_AI_MODEL` to config file
+6. Show confirmation
+
+**No-config fallback:** When `gt push`, `gt message`, or `gt pr` runs without config, auto-launch `gt configure`, then continue with the original command.
+
+**Re-running:** Always re-runnable. Running `gt configure` again overwrites the config.
+
 ### `gt self-update`
 
 Updates gt to the latest version.
@@ -141,5 +194,7 @@ Updates gt to the latest version.
 - **No remote origin:** Error with explanation
 - **Detached HEAD:** Error suggesting to create or switch to a branch
 - **Merge conflicts after stash pop:** Warn the user, don't silently swallow
-- **Empty diff sent to Claude:** Skip AI generation, warn user
-- **Claude CLI timeout/failure:** Error with suggestion to retry
+- **Empty diff sent to AI:** Skip AI generation, warn user
+- **AI CLI timeout/failure:** Error with suggestion to retry
+- **No AI configured:** Auto-launch `gt configure` before proceeding
+- **Configured AI tool uninstalled:** Show error with install instructions and suggest `gt configure`
