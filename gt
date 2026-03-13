@@ -518,8 +518,7 @@ cmd_cleanup() {
   [[ -z "$default_branch" ]] && die "Could not detect default branch from origin."
 
   # Fetch and prune to sync remote state
-  info "Fetching and pruning remote references..."
-  git fetch --prune
+  gum spin --spinner dot --title "Fetching and pruning remote references..." -- git fetch --prune
 
   # Use the remote ref for merge checks — local default branch may be stale
   local remote_default="origin/${default_branch}"
