@@ -370,7 +370,9 @@ cmd_push() {
   fi
 
   # 7. Commit
-  git commit -m "$commit_msg" &>/dev/null
+  if ! git commit -m "$commit_msg"; then
+    die "Commit failed. Check for pre-commit hook errors or other issues."
+  fi
   success "Committed."
 
   # 8. Push
