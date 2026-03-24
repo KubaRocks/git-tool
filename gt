@@ -1030,7 +1030,7 @@ ${diff_stat}"
       _ "$default_branch" "$title" "$description" "$pr_tmpfile"
   else
     gum spin --spinner dot --title "Creating ${pr_label}..." -- \
-      bash -c 'glab mr create --target-branch "$1" --title "$2" --description "$3" --no-editor > "$4" 2>&1' \
+      bash -c 'glab mr create --target-branch "$1" --title "$2" --description "$3" --squash-before-merge --no-editor > "$4" 2>&1' \
       _ "$default_branch" "$title" "$description" "$pr_tmpfile"
   fi
 
