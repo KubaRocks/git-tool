@@ -1042,9 +1042,15 @@ ${diff_stat}"
     die "Failed to create ${pr_label}."
   fi
 
-  # Extract URL from output (gh/glab may print extra text)
+  # Extract URL from output (gh/glab may print extra text like update notices)
   local url
-  url=$(echo "$pr_url" | grep -oE 'https://[^ ]+' | tail -1)
+  if [[ "$platform" == "gitlab" ]]; then
+    url=$(echo "$pr_url" | grep -oE 'https://[^ ]*/merge_requests/[0-9]+' | head -1)
+  else
+    url=$(echo "$pr_url" | grep -oE 'https://[^ ]*/pull/[0-9]+' | head -1)
+  fi
+  # Fallback: first URL in output
+  [[ -z "$url" ]] && url=$(echo "$pr_url" | grep -oE 'https://[^ ]+' | head -1)
 
   echo ""
   success "Created ${pr_label}: ${BOLD}${url:-$pr_url}${RESET}"
