@@ -1208,20 +1208,31 @@ push_branch() {
   success "Pushed to ${BOLD}origin/${branch}${RESET}"
 }
 
+# ── Update Check ─────────────────────────────────────────────────────────────
+check_for_update() {
+  local latest_version
+  latest_version=$(curl -fsSL --max-time 2 "https://raw.githubusercontent.com/KubaRocks/git-tool/main/VERSION" 2>/dev/null) || return
+  latest_version=$(echo "$latest_version" | tr -d '[:space:]')
+  if [[ -n "$latest_version" && "$GT_VERSION" != "$latest_version" ]]; then
+    echo ""
+    echo -e "${YELLOW}Update available:${RESET} ${DIM}${GT_VERSION}${RESET} → ${BOLD}${latest_version}${RESET}  —  run ${GREEN}gt self-update${RESET}"
+  fi
+}
+
 # ── Main ─────────────────────────────────────────────────────────────────────
 # Wrapped in a function so bash reads the entire script into memory before
 # executing. This prevents parse errors when cmd_self_update replaces the
 # script on disk mid-execution.
 main() {
   case "${1:-}" in
-    branch)  check_deps; cmd_branch ;;
-    push)    check_deps; cmd_push ;;
-    message) check_deps; cmd_message ;;
-    rebase)  cmd_rebase ;;
-    status)  cmd_status ;;
-    cleanup) check_deps; cmd_cleanup ;;
-    pr)      check_deps; cmd_pr ;;
-    configure) check_deps; cmd_configure ;;
+    branch)  check_deps; cmd_branch; check_for_update ;;
+    push)    check_deps; cmd_push; check_for_update ;;
+    message) check_deps; cmd_message; check_for_update ;;
+    rebase)  cmd_rebase; check_for_update ;;
+    status)  cmd_status; check_for_update ;;
+    cleanup) check_deps; cmd_cleanup; check_for_update ;;
+    pr)      check_deps; cmd_pr; check_for_update ;;
+    configure) check_deps; cmd_configure; check_for_update ;;
     self-update) cmd_self_update ;;
     version|--version|-v) cmd_version ;;
     *)
