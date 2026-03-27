@@ -429,19 +429,30 @@ ${diff_to_analyze}"
   local tmpfile
   tmpfile=$(mktemp /tmp/gt-message.XXXXXX)
 
+  local errfile
+  errfile=$(mktemp /tmp/gt-ai-err.XXXXXX)
+
   gum spin --spinner dot --title "Generating commit message..." -- \
     bash -c '
       case "$1" in
-        claude)   claude -p --model "$2" "$3" > "$4" 2>/dev/null ;;
-        codex)    codex exec -m "$2" "$3" > "$4" 2>/dev/null ;;
-        opencode) opencode run -q -m "$2" "$3" > "$4" 2>/dev/null ;;
-        gemini)   gemini -p -m "$2" "$3" > "$4" 2>/dev/null ;;
+        claude)   claude -p --model "$2" "$3" > "$4" 2>"$5" ;;
+        codex)    codex exec -m "$2" "$3" > "$4" 2>"$5" ;;
+        opencode) opencode run -q -m "$2" "$3" > "$4" 2>"$5" ;;
+        gemini)   gemini -p -m "$2" "$3" > "$4" 2>"$5" ;;
       esac
-    ' _ "$GT_AI_CLI" "$GT_AI_MODEL" "$prompt" "$tmpfile" || {
-    rm -f "$tmpfile"
-    echo "error: AI CLI failed" >&2
+    ' _ "$GT_AI_CLI" "$GT_AI_MODEL" "$prompt" "$tmpfile" "$errfile" || {
+    local err_output
+    err_output=$(cat "$errfile")
+    rm -f "$tmpfile" "$errfile"
+    if [[ -n "$err_output" ]]; then
+      echo -e "${RED}${GT_AI_CLI} error:${RESET}" >&2
+      echo "$err_output" >&2
+    else
+      echo "error: AI CLI failed" >&2
+    fi
     return 1
   }
+  rm -f "$errfile"
 
   local raw_output
   raw_output=$(cat "$tmpfile")
@@ -947,18 +958,28 @@ ${diff_stat}"
     local tmpfile
     tmpfile=$(mktemp /tmp/gt-pr.XXXXXX)
 
+    local errfile
+    errfile=$(mktemp /tmp/gt-ai-err.XXXXXX)
+
     gum spin --spinner dot --title "Generating ${pr_label} content..." -- \
       bash -c '
         case "$1" in
-          claude)   claude -p --model "$2" "$3" > "$4" 2>/dev/null ;;
-          codex)    codex exec -m "$2" "$3" > "$4" 2>/dev/null ;;
-          opencode) opencode run -q -m "$2" "$3" > "$4" 2>/dev/null ;;
-          gemini)   gemini -p -m "$2" "$3" > "$4" 2>/dev/null ;;
+          claude)   claude -p --model "$2" "$3" > "$4" 2>"$5" ;;
+          codex)    codex exec -m "$2" "$3" > "$4" 2>"$5" ;;
+          opencode) opencode run -q -m "$2" "$3" > "$4" 2>"$5" ;;
+          gemini)   gemini -p -m "$2" "$3" > "$4" 2>"$5" ;;
         esac
-      ' _ "$GT_AI_CLI" "$GT_AI_MODEL" "$prompt" "$tmpfile" || {
-      rm -f "$tmpfile"
+      ' _ "$GT_AI_CLI" "$GT_AI_MODEL" "$prompt" "$tmpfile" "$errfile" || {
+      local err_output
+      err_output=$(cat "$errfile")
+      rm -f "$tmpfile" "$errfile"
+      if [[ -n "$err_output" ]]; then
+        echo -e "${RED}${GT_AI_CLI} error:${RESET}" >&2
+        echo "$err_output" >&2
+      fi
       die "AI CLI failed."
     }
+    rm -f "$errfile"
 
     local raw_output
     raw_output=$(cat "$tmpfile")
