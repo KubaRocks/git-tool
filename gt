@@ -241,11 +241,26 @@ cmd_push() {
 
   if [[ -z "$status_output" ]]; then
     # 2. No changes — check for unpushed commits
+    local has_upstream=0
+    git rev-parse --verify --quiet "@{upstream}" &>/dev/null && has_upstream=1
+
     local unpushed
-    unpushed=$(git log --oneline "@{upstream}..HEAD" 2>/dev/null | wc -l | tr -d ' ')
+    if [[ $has_upstream -eq 1 ]]; then
+      unpushed=$(git log --oneline "@{upstream}..HEAD" 2>/dev/null | wc -l | tr -d ' ')
+    else
+      # No upstream — all commits ahead of remote default branch are unpushed
+      unpushed=$(git log --oneline HEAD 2>/dev/null | wc -l | tr -d ' ')
+    fi
+
     if [[ "$unpushed" -gt 0 ]]; then
+      local header
+      if [[ $has_upstream -eq 1 ]]; then
+        header="No changes to commit. Push ${unpushed} unpushed commit(s)?"
+      else
+        header="No changes to commit. Push branch ${branch} to origin?"
+      fi
       local choice
-      choice=$(gum choose "Yes" "Abort" --header "No changes to commit. Push ${unpushed} unpushed commit(s)?")
+      choice=$(gum choose "Yes" "Abort" --header "$header")
       if [[ "$choice" == "Yes" ]]; then
         push_branch "$branch"
         return
