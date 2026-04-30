@@ -6,6 +6,8 @@ A CLI that streamlines the git branch-commit-push workflow with AI-generated com
 
 - **`gt branch`** — Create a new branch off the latest default branch. Auto-stashes dirty work, pulls latest, converts input to valid branch names (preserving JIRA ticket IDs like `ID-4567`).
 
+- **`gt rename`** — Rename the current branch interactively, prefilled with the existing branch name for quick editing.
+
 - **`gt push`** — Interactive file staging with status labels, AI-generated commit messages (accept/edit/regenerate/cancel), auto-pull before commit, smart push with force-with-lease after rebase.
 
 - **`gt message`** — Generate a commit message from current changes using AI. Works standalone or piped (e.g. `gt message | pbcopy`).
@@ -71,6 +73,18 @@ Creates a new branch off the latest default branch. Auto-stashes dirty work, pul
 ▸ Creating branch: ID-4567-refactor-order-flow
 ▸ Restoring stashed changes...
 ✓ On new branch ID-4567-refactor-order-flow
+```
+
+### `gt rename`
+
+Renames the current branch interactively. The prompt is prefilled with the current branch name, and the command preserves the exact name you enter.
+
+```
+❯ gt rename
+▸ Current branch: ID-4567-refactor-order-flow
+? New branch name
+> ID-4567-refactor-checkout-flow
+✓ Renamed branch ID-4567-refactor-order-flow -> ID-4567-refactor-checkout-flow
 ```
 
 ### `gt push`

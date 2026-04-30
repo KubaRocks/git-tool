@@ -190,14 +190,21 @@ cmd_branch() {
   local ticket_id branch_name
   ticket_id=$(extract_ticket_id "$raw_name")
 
-  # Strip ticket ID from the rest for lowercasing
+  # Strip the matched ticket ID from the rest for lowercasing. The ticket can
+  # appear after pasted indentation or blank lines.
   local rest="$raw_name"
   if [[ -n "$ticket_id" ]]; then
-    rest="${raw_name:${#ticket_id}}"
+    rest="${raw_name/$ticket_id/}"
   fi
 
   # Lowercase the rest, replace spaces/invalid chars with dashes
-  rest=$(echo "$rest" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9._/-]/-/g' | sed 's/--*/-/g' | sed 's/^-//' | sed 's/-$//')
+  rest=$(printf '%s' "$rest" \
+    | sed 's/\[[^]]*\]//g' \
+    | tr '[:upper:]' '[:lower:]' \
+    | tr -c 'a-z0-9._/-' '-' \
+    | sed 's/--*/-/g' \
+    | sed 's/^-//' \
+    | sed 's/-$//')
 
   if [[ -n "$ticket_id" ]]; then
     branch_name="${ticket_id}-${rest}"
@@ -224,6 +231,30 @@ cmd_branch() {
   fi
 
   success "On new branch ${BOLD}${branch_name}${RESET}"
+}
+
+# ── gt rename ────────────────────────────────────────────────────────────────
+cmd_rename() {
+  assert_git_repo
+  assert_not_detached
+
+  local current_branch new_branch
+  current_branch=$(git symbolic-ref --short HEAD)
+  info "Current branch: ${BOLD}${current_branch}${RESET}"
+
+  new_branch=$(gum input --value "$current_branch" --placeholder "New branch name")
+  [[ -z "$new_branch" ]] && die "No branch name provided."
+
+  if [[ "$new_branch" == "$current_branch" ]]; then
+    info "Branch name unchanged."
+    return
+  fi
+
+  if ! git branch -m "$new_branch"; then
+    die "Could not rename branch."
+  fi
+
+  success "Renamed branch ${BOLD}${current_branch}${RESET} -> ${BOLD}${new_branch}${RESET}"
 }
 
 # ── gt push ──────────────────────────────────────────────────────────────────
@@ -1241,6 +1272,7 @@ check_for_update() {
 main() {
   case "${1:-}" in
     branch)  check_deps; cmd_branch; check_for_update ;;
+    rename)  check_deps; cmd_rename; check_for_update ;;
     push)    check_deps; cmd_push; check_for_update ;;
     message) check_deps; cmd_message; check_for_update ;;
     rebase)  cmd_rebase; check_for_update ;;
@@ -1261,6 +1293,7 @@ main() {
       fi
       echo ""
       echo -e "  ${GREEN}gt branch${RESET}       Create a new branch off the default branch"
+      echo -e "  ${GREEN}gt rename${RESET}       Rename the current branch"
       echo -e "  ${GREEN}gt push${RESET}        Stage, commit with AI message, and push"
       echo -e "  ${GREEN}gt message${RESET}     Generate a commit message from current changes"
       echo -e "  ${GREEN}gt rebase${RESET}      Rebase current branch onto default branch"

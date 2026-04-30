@@ -8,6 +8,7 @@ _gt() {
     'configure:Choose AI CLI tool and model'
     'pr:Create a pull/merge request with AI-generated description'
     'push:Stage, commit with AI message, and push'
+    'rename:Rename the current branch'
     'message:Generate a commit message from current changes'
     'rebase:Rebase current branch onto default branch'
     'status:Show current branch overview'

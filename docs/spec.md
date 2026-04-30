@@ -32,6 +32,24 @@ Creates a new branch off the latest default branch.
 
 **Ticket ID pattern:** `[A-Z]+-[0-9]+` at the start of the input.
 
+### `gt rename`
+
+Renames the current branch interactively.
+
+**Flow:**
+
+1. Assert git repo and not detached
+2. Detect current branch with `git symbolic-ref --short HEAD`
+3. Display the current branch name
+4. Prompt for the new branch name using `gum input --value <current-branch>`
+5. If the input is empty, print an error and exit
+6. If the input is unchanged, print a no-op message and exit
+7. Rename the current branch with `git branch -m <new-branch>`
+8. Show summary: "Renamed branch <old> -> <new>"
+
+The command preserves the exact branch name entered by the user. It does not
+apply `gt branch` slug normalization.
+
 ### `gt push`
 
 Stages files, generates an AI commit message, commits, and pushes — all in one command.
