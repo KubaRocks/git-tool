@@ -271,7 +271,7 @@ git-tool (gt) v2026.03.13
 
 ### `gt self-update`
 
-Check for updates and install the latest version.
+Check GitHub Releases for the latest version and install it from the release tag.
 
 ```
 ❯ gt self-update

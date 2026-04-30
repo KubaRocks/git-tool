@@ -1129,9 +1129,14 @@ cmd_version() {
 }
 
 # ── gt self-update ──────────────────────────────────────────────────────────
-cmd_self_update() {
-  local repo_url="https://raw.githubusercontent.com/KubaRocks/git-tool/main"
+latest_release_version() {
+  local max_time="${1:-5}"
+  curl -fsSL --max-time "$max_time" "https://api.github.com/repos/KubaRocks/git-tool/releases/latest" 2>/dev/null \
+    | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+    | head -n 1
+}
 
+cmd_self_update() {
   # Detect install path
   local install_path
   install_path=$(which gt 2>/dev/null) || die "Could not find gt in PATH."
@@ -1142,13 +1147,15 @@ cmd_self_update() {
 
   # Fetch latest version
   local latest_version
-  latest_version=$(curl -fsSL "${repo_url}/VERSION" 2>/dev/null) || die "Could not check for updates."
-  latest_version=$(echo "$latest_version" | tr -d '[:space:]')
+  latest_version=$(latest_release_version 5)
+  [[ -z "$latest_version" ]] && die "Could not check for updates."
 
   if [[ "$GT_VERSION" == "$latest_version" ]]; then
     success "Already up to date."
     return
   fi
+
+  local repo_url="https://raw.githubusercontent.com/KubaRocks/git-tool/${latest_version}"
 
   info "New version available: ${BOLD}${latest_version}${RESET}"
   info "Updating: ${BOLD}${GT_VERSION}${RESET} → ${BOLD}${latest_version}${RESET}"
@@ -1257,8 +1264,7 @@ push_branch() {
 # ── Update Check ─────────────────────────────────────────────────────────────
 check_for_update() {
   local latest_version
-  latest_version=$(curl -fsSL --max-time 2 "https://raw.githubusercontent.com/KubaRocks/git-tool/main/VERSION" 2>/dev/null) || return
-  latest_version=$(echo "$latest_version" | tr -d '[:space:]')
+  latest_version=$(latest_release_version 2)
   if [[ -n "$latest_version" && "$GT_VERSION" != "$latest_version" ]]; then
     echo ""
     echo -e "${YELLOW}Update available:${RESET} ${DIM}${GT_VERSION}${RESET} → ${BOLD}${latest_version}${RESET}  —  run ${GREEN}gt self-update${RESET}"

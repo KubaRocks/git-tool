@@ -198,11 +198,11 @@ Updates gt to the latest version.
 **Flow:**
 
 1. Detect install path via `which gt`
-2. Fetch `VERSION` from `raw.githubusercontent.com/KubaRocks/git-tool/main/VERSION`
+2. Fetch latest release metadata from `https://api.github.com/repos/KubaRocks/git-tool/releases/latest`
 3. Compare with current `GT_VERSION`
 4. If same → "Already up to date" and exit
-5. Download new `gt` to install path (sudo if not writable)
-6. Check for installed zsh completions, download new version, compare, update only if changed
+5. Download new `gt` from the latest release tag to install path (sudo if not writable)
+6. Check for installed zsh completions, download from the same release tag, compare, update only if changed
 7. If completions changed, instruct user to run `exec zsh`
 8. Print version transition summary
 
