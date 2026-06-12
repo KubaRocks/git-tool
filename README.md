@@ -91,6 +91,8 @@ Renames the current branch interactively. The prompt is prefilled with the curre
 
 Stages files, generates an AI commit message, commits, and pushes — all in one interactive flow.
 
+Use `-b` / `--branch` to push the current local branch to a differently named branch on `origin`.
+
 ```
 ❯ gt push
 Select files to stage:
@@ -113,6 +115,9 @@ ID-4567: add request caching to API handler
 
 ✓ Committed.
 ✓ Pushed to origin/ID-4567-refactor-order-flow
+
+❯ gt push --branch feature/request-caching
+✓ Pushed to origin/feature/request-caching
 ```
 
 ### `gt message`

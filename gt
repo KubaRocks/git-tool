@@ -259,12 +259,36 @@ cmd_rename() {
 
 # ── gt push ──────────────────────────────────────────────────────────────────
 cmd_push() {
+  local remote_branch=""
+  local remote_branch_set=0
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -b|--branch)
+        [[ $# -ge 2 && -n "$2" ]] || die "Missing value for $1."
+        remote_branch="$2"
+        remote_branch_set=1
+        shift 2
+        ;;
+      --branch=*)
+        remote_branch="${1#*=}"
+        [[ -n "$remote_branch" ]] || die "Missing value for --branch."
+        remote_branch_set=1
+        shift
+        ;;
+      *)
+        die "Unknown option for gt push: $1"
+        ;;
+    esac
+  done
+
   assert_git_repo
   assert_remote_origin
   assert_not_detached
 
   local branch
   branch=$(git symbolic-ref --short HEAD)
+  remote_branch="${remote_branch:-$branch}"
+  git check-ref-format --branch "$remote_branch" &>/dev/null || die "Invalid remote branch name: ${remote_branch}"
 
   # 1. Detect changes
   local status_output
@@ -286,14 +310,18 @@ cmd_push() {
     if [[ "$unpushed" -gt 0 ]]; then
       local header
       if [[ $has_upstream -eq 1 ]]; then
-        header="No changes to commit. Push ${unpushed} unpushed commit(s)?"
+        if [[ $remote_branch_set -eq 1 ]]; then
+          header="No changes to commit. Push ${unpushed} unpushed commit(s) to origin/${remote_branch}?"
+        else
+          header="No changes to commit. Push ${unpushed} unpushed commit(s)?"
+        fi
       else
-        header="No changes to commit. Push branch ${branch} to origin?"
+        header="No changes to commit. Push branch ${branch} to origin/${remote_branch}?"
       fi
       local choice
       choice=$(gum choose "Yes" "Abort" --header "$header")
       if [[ "$choice" == "Yes" ]]; then
-        push_branch "$branch"
+        push_branch "$branch" "$remote_branch" "$remote_branch_set"
         return
       else
         info "Aborted."
@@ -422,7 +450,7 @@ cmd_push() {
   success "Committed."
 
   # 8. Push
-  push_branch "$branch"
+  push_branch "$branch" "$remote_branch" "$remote_branch_set"
 }
 
 # ── gt message ───────────────────────────────────────────────────────────────
@@ -1221,18 +1249,41 @@ _update_completions() {
 # ── Push Helper ──────────────────────────────────────────────────────────────
 push_branch() {
   local branch="$1"
-  local push_cmd
-  if git rev-parse --verify --quiet "refs/remotes/origin/${branch}" &>/dev/null; then
-    push_cmd="git push"
+  local remote_branch="${2:-$branch}"
+  local remote_branch_set="${3:-0}"
+  local upstream
+  upstream=$(git rev-parse --abbrev-ref --symbolic-full-name "@{upstream}" 2>/dev/null || true)
+
+  local push_cmd=()
+  local pull_cmd=()
+  local force_cmd=()
+  local remote_ref="refs/remotes/origin/${remote_branch}"
+  local target_label="origin/${remote_branch}"
+  if [[ $remote_branch_set -eq 0 && -n "$upstream" ]]; then
+    push_cmd=(git push)
+    pull_cmd=(git pull --rebase)
+    force_cmd=(git push --force-with-lease)
+    remote_ref="refs/remotes/${upstream}"
+    target_label="$upstream"
+  elif [[ "$upstream" == "origin/${remote_branch}" ]]; then
+    push_cmd=(git push)
+    pull_cmd=(git pull --rebase)
+    force_cmd=(git push --force-with-lease)
+  elif [[ "$branch" == "$remote_branch" ]]; then
+    push_cmd=(git push -u origin "$branch")
+    pull_cmd=(git pull --rebase origin "$remote_branch")
+    force_cmd=(git push --force-with-lease origin "$branch")
   else
-    push_cmd="git push -u origin ${branch}"
+    push_cmd=(git push -u origin "${branch}:${remote_branch}")
+    pull_cmd=(git pull --rebase origin "$remote_branch")
+    force_cmd=(git push --force-with-lease origin "${branch}:${remote_branch}")
   fi
 
-  if ! gum spin --spinner dot --title "Pushing to origin/${branch}..." -- $push_cmd 2>&1; then
+  if ! gum spin --spinner dot --title "Pushing to ${target_label}..." -- "${push_cmd[@]}" 2>&1; then
     # Check if local branch has diverged from remote (e.g. after rebase)
     local local_base remote_base
-    local_base=$(git merge-base HEAD "refs/remotes/origin/${branch}" 2>/dev/null || true)
-    remote_base=$(git rev-parse "refs/remotes/origin/${branch}" 2>/dev/null || true)
+    local_base=$(git merge-base HEAD "$remote_ref" 2>/dev/null || true)
+    remote_base=$(git rev-parse "$remote_ref" 2>/dev/null || true)
 
     if [[ -n "$local_base" && "$local_base" != "$remote_base" ]]; then
       # Diverged — likely after a rebase, safe to force push
@@ -1240,7 +1291,7 @@ push_branch() {
       local choice
       choice=$(gum choose "Force push (--force-with-lease)" "Abort" --header "Push was rejected:")
       if [[ "$choice" == "Force push (--force-with-lease)" ]]; then
-        if ! gum spin --spinner dot --title "Force pushing..." -- git push --force-with-lease 2>&1; then
+        if ! gum spin --spinner dot --title "Force pushing..." -- "${force_cmd[@]}" 2>&1; then
           die "Force push failed."
         fi
       else
@@ -1249,8 +1300,8 @@ push_branch() {
       fi
     else
       # Not diverged — try pull --rebase then push again
-      if gum spin --spinner dot --title "Pulling with rebase..." -- git pull --rebase 2>&1; then
-        if ! gum spin --spinner dot --title "Pushing to origin/${branch}..." -- $push_cmd 2>&1; then
+      if gum spin --spinner dot --title "Pulling with rebase..." -- "${pull_cmd[@]}" 2>&1; then
+        if ! gum spin --spinner dot --title "Pushing to ${target_label}..." -- "${push_cmd[@]}" 2>&1; then
           die "Push failed after pull. Resolve manually."
         fi
       else
@@ -1258,7 +1309,7 @@ push_branch() {
       fi
     fi
   fi
-  success "Pushed to ${BOLD}origin/${branch}${RESET}"
+  success "Pushed to ${BOLD}${target_label}${RESET}"
 }
 
 # ── Update Check ─────────────────────────────────────────────────────────────
@@ -1279,7 +1330,7 @@ main() {
   case "${1:-}" in
     branch)  check_deps; cmd_branch; check_for_update ;;
     rename)  check_deps; cmd_rename; check_for_update ;;
-    push)    check_deps; cmd_push; check_for_update ;;
+    push)    check_deps; shift; cmd_push "$@"; check_for_update ;;
     message) check_deps; cmd_message; check_for_update ;;
     rebase)  cmd_rebase; check_for_update ;;
     status)  cmd_status; check_for_update ;;

@@ -54,6 +54,10 @@ apply `gt branch` slug normalization.
 
 Stages files, generates an AI commit message, commits, and pushes — all in one command.
 
+Options:
+
+- `-b, --branch <remote-branch>`: push the current local branch to a differently named branch on `origin`
+
 **Flow:**
 
 1. Detect changed files (`git status --porcelain`)
@@ -76,6 +80,7 @@ Stages files, generates an AI commit message, commits, and pushes — all in one
    - **Cancel** — unstage files, abort
 6. Commit with the final message (`git commit -m "<message>"`)
 7. Push:
+   - If `-b, --branch <remote-branch>` is provided: `git push -u origin <local-branch>:<remote-branch>`
    - If branch has no upstream: `git push -u origin <branch>`
    - Otherwise: `git push`
 

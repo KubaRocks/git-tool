@@ -16,11 +16,19 @@ _gt() {
     'version:Show current version'
   )
 
-  _arguments '1: :->command'
+  _arguments -C '1: :->command' '*::arg:->args'
 
   case $state in
     command)
       _describe 'gt command' commands
+      ;;
+    args)
+      case $words[2] in
+        push)
+          _arguments \
+            '(-b --branch)'{-b,--branch}'[Push to a differently named remote branch]:remote branch:'
+          ;;
+      esac
       ;;
   esac
 }
