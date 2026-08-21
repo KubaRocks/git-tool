@@ -178,8 +178,15 @@ cmd_branch() {
   fi
 
   # 3. Switch to default branch and pull
-  gum spin --spinner dot --title "Switching to ${default_branch} and pulling latest..." -- \
-    bash -c 'git checkout "$1" 2>&1 && git pull 2>&1' _ "$default_branch"
+  local sync_output
+  if ! sync_output=$(gum spin --spinner dot --title "Switching to ${default_branch} and pulling latest..." -- \
+    bash -c 'git checkout "$1" 2>&1 && git pull 2>&1' _ "$default_branch" 2>&1); then
+    [[ -n "$sync_output" ]] && printf '%s\n' "$sync_output" >&2
+    if [[ $stashed -eq 1 ]]; then
+      warn "Your changes remain in the stash. Restore them with: git stash pop"
+    fi
+    die "Could not switch to ${default_branch} and pull. Fix the Git error above, then run 'gt branch' again."
+  fi
 
   # 4. Prompt for branch name
   local raw_name
@@ -216,10 +223,29 @@ cmd_branch() {
   branch_name=$(echo "$branch_name" | sed 's/-$//')
 
   [[ -z "$branch_name" ]] && die "Could not derive a valid branch name."
-  info "Creating branch: ${BOLD}${branch_name}${RESET}"
 
-  # 6. Create and switch to new branch
-  git checkout -b "$branch_name" &>/dev/null
+  # 6. Create a new branch, or switch to it if it already exists
+  local checkout_output branch_existed=0
+  if git show-ref --verify --quiet "refs/heads/${branch_name}"; then
+    branch_existed=1
+    info "Switching to existing branch: ${BOLD}${branch_name}${RESET}"
+    if ! checkout_output=$(git switch "$branch_name" 2>&1); then
+      [[ -n "$checkout_output" ]] && printf '%s\n' "$checkout_output" >&2
+      if [[ $stashed -eq 1 ]]; then
+        warn "Your changes remain in the stash. Restore them with: git stash pop"
+      fi
+      die "Could not switch to '${branch_name}'. If another worktree uses it, use that worktree or switch it away, then run 'gt branch' again."
+    fi
+  else
+    info "Creating branch: ${BOLD}${branch_name}${RESET}"
+    if ! checkout_output=$(git checkout -b "$branch_name" 2>&1); then
+      [[ -n "$checkout_output" ]] && printf '%s\n' "$checkout_output" >&2
+      if [[ $stashed -eq 1 ]]; then
+        warn "Your changes remain in the stash. Restore them with: git stash pop"
+      fi
+      die "Could not create and switch to '${branch_name}'. Fix the Git error above, then run 'gt branch' again or choose a different branch name."
+    fi
+  fi
 
   # 7. Pop stash if needed
   if [[ $stashed -eq 1 ]]; then
@@ -230,7 +256,11 @@ cmd_branch() {
     fi
   fi
 
-  success "On new branch ${BOLD}${branch_name}${RESET}"
+  if [[ $branch_existed -eq 1 ]]; then
+    success "On existing branch ${BOLD}${branch_name}${RESET}"
+  else
+    success "On new branch ${BOLD}${branch_name}${RESET}"
+  fi
 }
 
 # ── gt rename ────────────────────────────────────────────────────────────────
