@@ -160,6 +160,17 @@ Creates a pull request (GitHub) or merge request (GitLab) with AI-generated titl
 9. Prepend ticket ID to title if found
 10. Create PR/MR via `gh pr create` or `glab mr create`
 
+### `gt skill`
+
+Installs the `gt-workflow` agent skill: the branch, push, PR and rebase conventions written for an agent that runs `git`, `gh` and `glab` directly. The skill lives in `skills/gt-workflow/SKILL.md` and is downloaded from the release tag matching `GT_VERSION`, the same way `self-update` fetches completions.
+
+**Flow:**
+
+1. Choose scope via `gum choose`: local (repository root, or the current directory outside a repository) or global (`$HOME`)
+2. Download the skill for `GT_VERSION` (abort if the download fails), then write `<base>/.agents/skills/gt-workflow/SKILL.md`. If the file is identical → report up to date. If it differs → `gum confirm` before replacing
+3. `gum confirm` whether to link it for Claude Code. If yes → symlink `<base>/.claude/skills/gt-workflow` → `../../.agents/skills/gt-workflow`
+4. An existing link to the same skill is left alone. Any other file or link at that path → warn and leave it unchanged
+
 ### `gt configure`
 
 Choose which AI CLI tool and model `gt` uses for content generation.
@@ -209,7 +220,12 @@ Updates gt to the latest version.
 5. Download new `gt` from the latest release tag to install path (sudo if not writable)
 6. Check for installed zsh completions, download from the same release tag, compare, update only if changed
 7. If completions changed, instruct user to run `exec zsh`
-8. Print version transition summary
+8. If `~/.agents/skills/gt-workflow/SKILL.md` exists, download the skill from the new release tag:
+   - identical → do nothing
+   - installed copy matches the skill from the old version's tag → replace it
+   - otherwise it was edited by hand → warn and point to `gt skill`
+   - either download fails → warn and point to `gt skill`
+9. Print version transition summary
 
 ## Edge Cases
 

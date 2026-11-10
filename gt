@@ -1181,6 +1181,78 @@ ${diff_stat}"
   success "Created ${pr_label}: ${BOLD}${url:-$pr_url}${RESET}"
 }
 
+# ── gt skill ────────────────────────────────────────────────────────────────
+GT_SKILL_NAME="gt-workflow"
+GT_RAW_URL="https://raw.githubusercontent.com/KubaRocks/git-tool"
+
+# The agent skill as released with the given gt version.
+skill_url() {
+  echo "${GT_RAW_URL}/$1/skills/${GT_SKILL_NAME}/SKILL.md"
+}
+
+download_skill() {
+  curl -fsSL --max-time 10 "$(skill_url "$1")" -o "$2" 2>/dev/null && [[ -s "$2" ]]
+}
+
+cmd_skill() {
+  local local_base global_base="$HOME"
+  local_base=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+
+  # 1. Choose scope
+  local local_label="Local  (${local_base}/.agents/skills)"
+  local global_label="Global (~/.agents/skills)"
+  local scope base
+  scope=$(gum choose "$local_label" "$global_label" --header "Install the ${GT_SKILL_NAME} skill:") || die "Selection cancelled."
+  case "$scope" in
+    "$local_label")  base="$local_base" ;;
+    "$global_label") base="$global_base" ;;
+    *) die "No location selected." ;;
+  esac
+
+  # 2. Download and write the skill
+  local tmpfile
+  tmpfile=$(mktemp /tmp/gt-skill.XXXXXX)
+  if ! gum spin --spinner dot --title "Downloading ${GT_SKILL_NAME} skill (${GT_VERSION})..." -- \
+    curl -fsSL --max-time 10 "$(skill_url "$GT_VERSION")" -o "$tmpfile" || [[ ! -s "$tmpfile" ]]; then
+    rm -f "$tmpfile"
+    die "Could not download the ${GT_SKILL_NAME} skill for ${GT_VERSION}."
+  fi
+
+  local skill_dir="${base}/.agents/skills/${GT_SKILL_NAME}"
+  local skill_file="${skill_dir}/SKILL.md"
+  if [[ -f "$skill_file" ]] && diff -q "$tmpfile" "$skill_file" &>/dev/null; then
+    success "Skill already up to date: ${BOLD}${skill_file}${RESET}"
+  else
+    if [[ -f "$skill_file" ]] && ! gum confirm "Replace the existing ${skill_file}?"; then
+      rm -f "$tmpfile"
+      die "Install cancelled."
+    fi
+    mkdir -p "$skill_dir" && cp "$tmpfile" "$skill_file" || { rm -f "$tmpfile"; die "Could not write ${skill_file}."; }
+    success "Installed skill: ${BOLD}${skill_file}${RESET}"
+  fi
+  rm -f "$tmpfile"
+
+  # 3. Optionally link it for Claude Code, which reads .claude/skills
+  local link_path="${base}/.claude/skills/${GT_SKILL_NAME}"
+  gum confirm "Also link it for Claude Code (${link_path})?" || return 0
+
+  if [[ -L "$link_path" ]]; then
+    if [[ "$(cd "$link_path" 2>/dev/null && pwd -P)" == "$(cd "$skill_dir" && pwd -P)" ]]; then
+      success "Claude Code link already in place: ${BOLD}${link_path}${RESET}"
+      return 0
+    fi
+    warn "${link_path} already links elsewhere. Remove it and run 'gt skill' again."
+    return 1
+  elif [[ -e "$link_path" ]]; then
+    warn "${link_path} already exists and is not a link. Remove it and run 'gt skill' again."
+    return 1
+  fi
+
+  mkdir -p "${base}/.claude/skills" || die "Could not create ${base}/.claude/skills."
+  ln -s "../../.agents/skills/${GT_SKILL_NAME}" "$link_path" || die "Could not create ${link_path}."
+  success "Linked for Claude Code: ${BOLD}${link_path}${RESET}"
+}
+
 # ── gt version ──────────────────────────────────────────────────────────────
 cmd_version() {
   echo "git-tool (gt) ${GT_VERSION}"
@@ -1213,7 +1285,7 @@ cmd_self_update() {
     return
   fi
 
-  local repo_url="https://raw.githubusercontent.com/KubaRocks/git-tool/${latest_version}"
+  local repo_url="${GT_RAW_URL}/${latest_version}"
 
   info "New version available: ${BOLD}${latest_version}${RESET}"
   info "Updating: ${BOLD}${GT_VERSION}${RESET} → ${BOLD}${latest_version}${RESET}"
@@ -1241,12 +1313,42 @@ cmd_self_update() {
   # Update completions if installed
   _update_completions "$repo_url"
 
+  # Refresh the global agent skill if installed
+  _update_skill "$latest_version"
+
   echo ""
   echo -e "git-tool (gt) ${GT_VERSION} → ${latest_version}"
 
   # Exit immediately — the script on disk was just replaced, so bash must not
   # continue reading from the now-different file.
   exit 0
+}
+
+_update_skill() {
+  local new_version="$1"
+  local skill_file="$HOME/.agents/skills/${GT_SKILL_NAME}/SKILL.md"
+  [[ -f "$skill_file" ]] || return 0
+
+  local new_tmp old_tmp
+  new_tmp=$(mktemp /tmp/gt-skill-new.XXXXXX)
+  old_tmp=$(mktemp /tmp/gt-skill-old.XXXXXX)
+
+  if ! download_skill "$new_version" "$new_tmp"; then
+    warn "Could not download the ${GT_SKILL_NAME} skill. Run 'gt skill' to update it."
+  elif diff -q "$new_tmp" "$skill_file" &>/dev/null; then
+    :  # already current
+  elif ! download_skill "$GT_VERSION" "$old_tmp"; then
+    warn "Could not check ${skill_file} for local changes. Run 'gt skill' to update it."
+  elif ! diff -q "$old_tmp" "$skill_file" &>/dev/null; then
+    # Differs from the skill released with the previous version: edited by hand.
+    warn "${skill_file} has local changes. Run 'gt skill' to replace it."
+  elif cp "$new_tmp" "$skill_file"; then
+    info "Updated the global ${GT_SKILL_NAME} skill."
+  else
+    warn "Could not write ${skill_file}. Run 'gt skill' to update it."
+  fi
+
+  rm -f "$new_tmp" "$old_tmp"
 }
 
 _update_completions() {
@@ -1366,6 +1468,7 @@ main() {
     status)  cmd_status; check_for_update ;;
     cleanup) check_deps; cmd_cleanup; check_for_update ;;
     pr)      check_deps; cmd_pr; check_for_update ;;
+    skill)   check_deps; cmd_skill; check_for_update ;;
     configure) check_deps; cmd_configure; check_for_update ;;
     self-update) cmd_self_update ;;
     version|--version|-v) cmd_version ;;
@@ -1387,6 +1490,7 @@ main() {
       echo -e "  ${GREEN}gt status${RESET}      Show current branch overview"
       echo -e "  ${GREEN}gt cleanup${RESET}     Delete branches already merged or removed from remote"
       echo -e "  ${GREEN}gt pr${RESET}          Create a pull/merge request with AI-generated description"
+      echo -e "  ${GREEN}gt skill${RESET}       Install the gt workflow as an agent skill"
       echo -e "  ${GREEN}gt configure${RESET}   Choose AI CLI tool and model"
       echo -e "  ${GREEN}gt version${RESET}     Show current version"
       echo -e "  ${GREEN}gt self-update${RESET}  Update gt to the latest version"

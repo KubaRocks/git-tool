@@ -12,6 +12,7 @@ _gt() {
     'message:Generate a commit message from current changes'
     'rebase:Rebase current branch onto default branch'
     'status:Show current branch overview'
+    'skill:Install the gt workflow as an agent skill'
     'self-update:Update gt to the latest version'
     'version:Show current version'
   )
