@@ -20,6 +20,8 @@ A CLI that streamlines the git branch-commit-push workflow with AI-generated com
 
 - **`gt pr`** — Create a pull request (GitHub) or merge request (GitLab) with AI-generated title and description. Auto-detects platform from remote URL.
 
+- **`gt skill`** — Install the `gt-workflow` agent skill so coding agents follow the same branch, push, PR and rebase conventions without the interactive prompts.
+
 - **`gt configure`** — Choose which AI CLI tool and model `gt` uses for content generation. Supports Claude, Codex, OpenCode, and Gemini.
 
 - **`gt version`** — Print current version.
@@ -241,6 +243,43 @@ Title: ID-4567: add request caching to API handler
 ✓ Created Pull Request: https://github.com/user/repo/pull/42
 ```
 
+### `gt skill`
+
+`gt` is interactive, so agents can't drive it. `gt skill` installs a `gt-workflow` skill that teaches an agent the same workflow: branch naming, commit message and PR conventions, push and rebase steps. The agent runs `git`, `gh` and `glab` itself and writes the text, so no AI configuration is needed.
+
+```
+❯ gt skill
+? Install the gt-workflow skill:
+> Local  (/path/to/repo/.agents/skills)
+  Global (~/.agents/skills)
+
+✓ Installed skill: /path/to/repo/.agents/skills/gt-workflow/SKILL.md
+? Also link it for Claude Code (/path/to/repo/.claude/skills/gt-workflow)? Yes
+✓ Linked for Claude Code: /path/to/repo/.claude/skills/gt-workflow
+```
+
+Local installs go to the repository root. The Claude Code link is a relative symlink to `../../.agents/skills/gt-workflow`. The skill lives in [`skills/gt-workflow/SKILL.md`](skills/gt-workflow/SKILL.md), and `gt skill` downloads the copy released with your `gt` version. `gt self-update` refreshes the global copy unless you edited it by hand; run `gt skill` again to update a local copy.
+
+#### Using the skill
+
+Ask the agent in plain words. The skill loads when the request is about branching, committing or pushing, PRs or rebasing. In Claude Code you can also invoke it with `/gt-workflow`.
+
+| You ask | The agent does |
+|---|---|
+| "start a branch for ID-4567 refactor order flow [WIP]" | Updates the default branch, then creates or switches to `ID-4567-refactor-order-flow`, keeping uncommitted changes |
+| "commit and push this" | Stages the task's files, commits with a message like `ID-4567: refactor order creation into a single service`, and pushes |
+| "push to release-fix on the remote" | Pushes the current branch to `origin/release-fix`, like `gt push -b` |
+| "open a PR" | Pushes if needed, then creates the PR/MR with a ticket-prefixed title and a `## Summary` / `## Changes` body, and reports the URL |
+| "rebase on main" | Fetches, rebases onto `origin/main`, and resolves conflicts by taking main's changes while keeping the branch's new functionality |
+
+Steps chain in one prompt, which `gt` can't do because it stops for input at each step:
+
+```
+branch off for ID-4590 add retry to webhook sender, implement it, then push and open a PR
+```
+
+Force pushes always use `--force-with-lease`. The agent force-pushes when you asked it to push a branch it just rebased; otherwise it asks first. When a rebase conflict has no clear resolution, it shows you the conflict and offers to abort.
+
 ### `gt configure`
 
 Choose which AI CLI tool and model `gt` uses for content generation. Configuration is stored in `~/.config/git-tool/config`.
@@ -285,6 +324,7 @@ Check GitHub Releases for the latest version and install it from the release tag
 ▸ New version available: v2026.03.14
 ▸ Updating: v2026.03.13 → v2026.03.14
 ✓ Updated gt to v2026.03.14
+▸ Updated the global gt-workflow skill.
 
 git-tool (gt) v2026.03.13 → v2026.03.14
 ```
